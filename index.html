@@ -731,6 +731,44 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica N
         .catch(e=>{ console.error('익명 로그인 실패', e); resolve(null); });
     });
   </script>
+
+<script>
+// Firestore 일괄 부트스트랩: 관리자·기관·슈퍼 데이터를 로컬 캐시로 로드
+window._fbBootstrapped = (async()=>{
+  try{
+    await window._FB.authReady;
+    const db = _FB.db;
+    // admins
+    const admSnap = await db.collection('admins').get();
+    const admins = admSnap.docs.map(d=>d.data());
+    if(admins.length) localStorage.setItem('cbt_admins', JSON.stringify(admins));
+    // super
+    const supDoc = await db.collection('config').doc('super').get();
+    if(supDoc.exists){
+      const sup = supDoc.data();
+      if(sup && Object.keys(sup).length){
+        localStorage.setItem('cbt_super_admin', JSON.stringify(sup));
+      }
+    }
+    // users
+    const userSnap = await db.collection('users').get();
+    const users = userSnap.docs.map(d=>d.data());
+    if(users.length) localStorage.setItem('cbt_users', JSON.stringify(users));
+    console.log('[Firestore bootstrap] admins:', admins.length, 'users:', users.length, 'super:', supDoc.exists);
+    // 실시간 리스너 (관리자 데이터 변경 시 자동 반영)
+    db.collection('admins').onSnapshot(snap=>{
+      const arr = snap.docs.map(d=>d.data());
+      localStorage.setItem('cbt_admins', JSON.stringify(arr));
+      if(typeof renderInstOptions==='function') renderInstOptions();
+    });
+    db.collection('users').onSnapshot(snap=>{
+      const arr = snap.docs.map(d=>d.data());
+      localStorage.setItem('cbt_users', JSON.stringify(arr));
+    });
+    return true;
+  }catch(e){ console.error('[Firestore bootstrap] 실패', e); return false; }
+})();
+</script>
 </head>
 <body>
 
@@ -1320,8 +1358,42 @@ let SUPER_USER=null;
 let AD_LOGIN_MODE='s'; // 's'=super, 'i'=institution
 function getSuper(){try{return JSON.parse(localStorage.getItem('cbt_super_admin')||'null');}catch(e){return null;}}
 function setSuper(a){localStorage.setItem('cbt_super_admin',JSON.stringify(a));}
-function getAdmins(){try{return JSON.parse(localStorage.getItem('cbt_admins')||'[]');}catch(e){return [];}}
-function setAdminsStore(a){localStorage.setItem('cbt_admins',JSON.stringify(a));}
+function getAdmins(){
+  try{
+    let list=JSON.parse(localStorage.getItem('cbt_admins')||'[]');
+    // 비어있으면 기본 기관 자동 seed (ID/PW는 관리자만 쓰는 정보라 dummy)
+    if(list.length===0 && typeof DEFAULT_INSTS!=='undefined'){
+      list=DEFAULT_INSTS.map((inst,i)=>({
+        기관명: inst,
+        id: 'auto_'+i,
+        pw: 'changeme',
+        autoSeed: true
+      }));
+      localStorage.setItem('cbt_admins', JSON.stringify(list));
+    }
+    return list;
+  }catch(e){return [];}
+}
+function setAdminsStore(l){
+  localStorage.setItem('cbt_admins',JSON.stringify(l));
+  if(window._FB){
+    (async()=>{
+      try{
+        await window._FB.authReady;
+        // admins 컬렉션 전체 교체 방식
+        const colRef = _FB.db.collection('admins');
+        const existing = await colRef.get();
+        const batch = _FB.db.batch();
+        existing.forEach(d=>batch.delete(d.ref));
+        l.forEach((a,i)=>{
+          const docId = (a.기관명 || 'admin_'+i).replace(/[\/\.]/g,'_');
+          batch.set(colRef.doc(docId), a);
+        });
+        await batch.commit();
+      }catch(e){console.error('fsSaveAdmins',e);}
+    })();
+  }
+}
 
 // === 관리자 로그인 모달 ===
 function openAdLogin(){
@@ -2414,8 +2486,16 @@ document.getElementById('sfBirth').addEventListener('keydown',e=>{if(e.key==='En
 // 페이지 초기화 (시험 저장소 seed + 로그인 상태 확인)
 (function init(){
   initExamsStore();
-  refreshSuperInitBtn();
-  renderInstOptions();  // 기관 드롭다운 채우기
+  // Firestore 부트스트랩 완료 대기 후 관리자/기관 UI 렌더 (fail-safe)
+  if(window._fbBootstrapped){
+    window._fbBootstrapped.finally(()=>{
+      refreshSuperInitBtn();
+      renderInstOptions();
+    });
+  } else {
+    refreshSuperInitBtn();
+    renderInstOptions();
+  }
   // 안전장치: 게스트 세션은 비활성이므로 제거
   if(CURR_USER && CURR_USER.isGuest){ CURR_USER=null; localStorage.removeItem('cbt_curr'); }
   if(SUPER_USER){
@@ -2639,21 +2719,22 @@ window.jumpWrong = function(dir){
 };
 
 // 기관 드롭다운 렌더 (getAdmins의 기관명 목록 + 기본 '개인학습')
+// ★ 하드코딩 기본 기관 목록 — 모든 기기에서 드롭다운에 기본 표시됨
+const DEFAULT_INSTS = [
+  '고려요양보호사교육원 원주점',
+  '고려요양보호사교육원',
+  '원주보훈요양원',
+];
 function renderInstOptions(){
   const sel=document.getElementById('lgInst');
   if(!sel)return;
   const admins=(typeof getAdmins==='function')?(getAdmins()||[]):[];
-  const instSet=new Set();
+  const instSet=new Set(DEFAULT_INSTS);  // 기본 기관 먼저 포함
   admins.forEach(a=>{ if(a && a.기관명) instSet.add(a.기관명); });
   (getAllUsers()||[]).forEach(u=>{ if(u && u.기관명 && u.기관명!=='개인학습') instSet.add(u.기관명); });
   const insts=[...instSet].sort((a,b)=>a.localeCompare(b,'ko'));
-  if(insts.length===0){
-    sel.innerHTML='<option value="">— 등록된 기관이 없습니다 —</option>';
-    sel.disabled=true;
-  } else {
-    sel.innerHTML=insts.map(i=>`<option value="${escHtml(i)}">${escHtml(i)}</option>`).join('');
-    sel.disabled=false;
-  }
+  sel.innerHTML=insts.map(i=>`<option value="${escHtml(i)}">${escHtml(i)}</option>`).join('');
+  sel.disabled=false;
   sel.onchange=()=>{ renderCohortOptions(sel.value); const c=document.getElementById('lgCohort'); if(c) c.value=''; };
   renderCohortOptions(sel.value);
 }
