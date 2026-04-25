@@ -22,7 +22,35 @@
   --pass:#27ae60;--fail:#e53935;--orange:#e67e22;--purple:#7b1fa2;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Malgun Gothic","맑은 고딕";background:var(--footer);overflow:hidden;height:100vh;-webkit-tap-highlight-color:transparent;}
+html{--gsc:1;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Malgun Gothic","맑은 고딕";background:var(--footer);overflow:hidden;height:100vh;-webkit-tap-highlight-color:transparent;font-size:calc(16px * var(--gsc));}
+/* 플로팅 글자 크기 버튼 — 어디서든 노출 */
+.fz-fab{position:fixed;right:14px;bottom:16px;z-index:9999;min-width:64px;height:64px;padding:0 14px;border-radius:32px;background:#3a4d6b;color:#fff;border:2px solid #fff;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;font-weight:bold;}
+.fz-fab:hover{background:#4a5d7b;}
+.fz-fab:active{transform:scale(.95);}
+.fz-fab .fz-a{font-size:15px;}
+.fz-fab .fz-b{font-size:26px;margin-left:2px;}
+.fz-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(40,50,70,.95);color:#fff;padding:11px 22px;border-radius:24px;font-size:16px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .25s;z-index:10000;}
+.fz-toast.show{opacity:1;}
+/* 모바일 반응형 */
+@media (max-width:900px){
+  .fz-fab{min-width:72px;height:64px;right:12px;bottom:14px;}
+  .lg-card,.sel-card{padding:24px 16px !important;max-width:96% !important;}
+  .lg-form input,.lg-form select{font-size:17px !important;padding:14px 12px !important;}
+  .lg-btn{font-size:18px !important;padding:16px !important;}
+  .sel-item{padding:18px 16px !important;font-size:16px !important;}
+  .sel-item h3{font-size:18px !important;}
+  /* 시험 헤더의 글자 크기 버튼들도 모바일에서 표시 */
+  .hdr{flex-wrap:wrap;height:auto !important;min-height:80px;padding:8px;gap:6px;align-items:flex-start;}
+  .hdr-l,.hdr-c,.hdr-r{flex:0 0 auto;}
+  .hdr-r{width:100%;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start;}
+  .dg{display:flex;flex-wrap:wrap;align-items:center;gap:4px;}
+  .dl{font-size:11px !important;}
+  .db{min-width:48px;height:42px;padding:4px 6px;font-size:11px;border-radius:6px;}
+  .db em{font-size:11px;}
+  .cg{display:flex;align-items:center;gap:4px;}
+  .tmr{font-size:12px !important;}
+}
 
 /* =================== SELECT SCREEN =================== */
 .sel{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#e8ecf1;}
@@ -868,6 +896,9 @@ window._fbBootstrapped = (async()=>{
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- 글자 크기 플로팅 버튼 (어느 화면에서도 노출) -->
+<button class="fz-fab" id="fzFab" onclick="fzCycle()" title="글자 크기 조절"><span class="fz-a">가</span><span class="fz-b">가</span></button>
 
 <!-- LOGIN SCREEN -->
 <div id="login" class="lg">
@@ -1823,9 +1854,14 @@ async function doLogin(){
     if(doc.exists){
       u = doc.data();
     } else {
-      // 새 회원 자동 등록
-      u = {name, birth, 기관명:inst, 기수:cohort, approved:true, createdAt:Date.now()};
-      await _FB.db.collection('users').doc(docId).set(u);
+      // 등록되지 않은 회원은 로그인 거부 (관리자가 사전 등록 필요)
+      err.textContent = '등록되지 않은 회원입니다. 관리자에게 등록 요청 후 다시 시도해주세요.';
+      return;
+    }
+    // 등록은 됐지만 승인되지 않은 경우 차단
+    if(u && u.approved === false){
+      err.textContent = '관리자 승인 대기 중입니다. 잠시 후 다시 시도해주세요.';
+      return;
     }
     // 로컬 캐시 업데이트
     const all = getAllUsers();
@@ -1892,6 +1928,12 @@ function renderExamSelect(){
   wrap.innerHTML=h;
 }
 function openExamWindow(k){
+  // 모바일: 전체화면/팝업 없이 그대로 이동(가로회전 방지)
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(navigator.userAgent) || (window.innerWidth <= 900);
+  if(isMobile){
+    location.href = location.pathname + '?exam=' + encodeURIComponent(k);
+    return;
+  }
   const url = location.pathname + '?exam=' + encodeURIComponent(k) + '&fs=1';
   const sw = screen.availWidth || screen.width || 1400;
   const sh = screen.availHeight || screen.height || 900;
@@ -2315,10 +2357,54 @@ function altOk(){const cb=ALT_CB;altClose();if(cb)cb();}
 // Settings
 function dpi(b,s){
   SC=s;
-  document.querySelectorAll('.db').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on');
-  document.getElementById('qP').style.setProperty('--sc',s);
+  document.querySelectorAll('.db').forEach(x=>{
+    x.classList.toggle('on', Number(x.dataset.s)===Number(s));
+  });
+  // 시험 화면뿐 아니라 전체 페이지에 글자 크기 적용
+  const qP=document.getElementById('qP'); if(qP) qP.style.setProperty('--sc',s);
+  document.documentElement.style.setProperty('--gsc',s);
+  // 사용자 선호 저장 (다음 접속 시 복원)
+  try{ localStorage.setItem('cbt_font_scale', String(s)); }catch(e){}
 }
+// 모바일에서 어디서든 누를 수 있는 플로팅 글자 크기 버튼
+function fzCycle(){
+  const opts=[1, 1.1, 1.25];
+  const cur=Number(localStorage.getItem('cbt_font_scale')||1.1);
+  const i=opts.findIndex(v=>Math.abs(v-cur)<0.01);
+  const next=opts[(i+1)%opts.length];
+  // 가짜 버튼 객체로 dpi 호출
+  const btns=document.querySelectorAll('.db');
+  let target=null;
+  btns.forEach(b=>{ if(Math.abs(Number(b.dataset.s)-next)<0.01) target=b; });
+  if(target) dpi(target, next); else dpi({classList:{add:()=>{},remove:()=>{}}}, next);
+  // 토스트 안내
+  const t=document.getElementById('fzToast') || (function(){
+    const d=document.createElement('div'); d.id='fzToast'; d.className='fz-toast';
+    document.body.appendChild(d); return d;
+  })();
+  t.textContent='글자 크기 ' + Math.round(next*100) + '%';
+  t.classList.add('show');
+  clearTimeout(window.__fzTm);
+  window.__fzTm=setTimeout(()=>t.classList.remove('show'), 1200);
+}
+// 페이지 로드 시 저장된 글자 크기 복원
+(function restoreFontScale(){
+  try{
+    const saved=Number(localStorage.getItem('cbt_font_scale'));
+    if(saved && saved>=0.8 && saved<=2.5){
+      document.documentElement.style.setProperty('--gsc', saved);
+      // 시험 화면 진입 시 자동 적용되도록 SC도 갱신
+      window.SC=saved;
+      // .db 버튼 동기화 (DOM 준비 후)
+      document.addEventListener('DOMContentLoaded', ()=>{
+        document.querySelectorAll('.db').forEach(b=>{
+          b.classList.toggle('on', Math.abs(Number(b.dataset.s)-saved)<0.01);
+        });
+        const qP=document.getElementById('qP'); if(qP) qP.style.setProperty('--sc',saved);
+      });
+    }
+  }catch(e){}
+})();
 function col(c){CL=c;P=0;$('c1').classList.toggle('on',c===1);$('c2').classList.toggle('on',c===2);rn();}
 
 // Answer sheet
@@ -2603,8 +2689,9 @@ document.getElementById('sfBirth').addEventListener('keydown',e=>{if(e.key==='En
     const params = new URLSearchParams(location.search);
     const examParam = params.get('exam');
     const ex = getExams() || {};
-    // ?fs=1 이면 전체화면 진입 (사용자 첫 상호작용 시)
-    if(params.get('fs') === '1'){
+    // ?fs=1 이면 전체화면 진입 (사용자 첫 상호작용 시) — 모바일은 가로회전 방지를 위해 스킵
+    const _isMobile = /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(navigator.userAgent) || (window.innerWidth <= 900);
+    if(params.get('fs') === '1' && !_isMobile){
       const enterFs = () => {
         try {
           const el = document.documentElement;
