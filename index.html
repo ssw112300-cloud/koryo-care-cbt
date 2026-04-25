@@ -899,7 +899,7 @@ window._fbBootstrapped = (async()=>{
         </label>
         <label>🎓 기수
           <div class="lg-input-wrap">
-            <input type="text" id="lgCohort" list="cohortList" placeholder="예) 15" maxlength="3" inputmode="numeric" autocomplete="off">
+            <input type="text" id="lgCohort" list="cohortList" placeholder="예) 15" maxlength="3" inputmode="numeric" pattern="[0-9]*" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
             <span class="lg-suffix">기</span>
             <datalist id="cohortList"></datalist>
           </div>
@@ -1055,7 +1055,7 @@ window._fbBootstrapped = (async()=>{
       <div class="usrUp-panel" id="uPanelS">
         <div class="usrUp-tip">한 명씩 즉시 추가합니다. 이름과 생년월일이 이미 있으면 중복으로 등록 안됩니다.</div>
         <div class="single-form">
-          <label>기수<input type="text" id="sfCohort" placeholder="42"></label>
+          <label>기수<input type="text" id="sfCohort" placeholder="42" maxlength="3" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></label>
           <label>이름<input type="text" id="sfName" placeholder="홍길동"></label>
           <label>생년월일(6자리)<input type="text" id="sfBirth" placeholder="800115" maxlength="8" inputmode="numeric"></label>
           <button onclick="addSingleUser()">추가</button>
@@ -1532,28 +1532,92 @@ function renderInstList(){
   list.innerHTML=h;
 }
 function renderInstUsers(instName,users){
-  if(users.length===0)return '<div style="padding:10px;text-align:center;color:#aaa;font-size:12px;">소속 회원 없음</div>';
+  let h=`<button class="inst-add-user" onclick="superAddUser('${escHtml(instName)}')" style="display:block;width:100%;background:#3a4d6b;color:#fff;border:none;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;margin-bottom:6px;">➕ 훈련생 추가</button>`;
+  if(users.length===0){
+    h+='<div style="padding:10px;text-align:center;color:#aaa;font-size:12px;">소속 회원 없음</div>';
+    return h;
+  }
   const pending=users.filter(u=>!u.approved);
-  let h='';
   if(pending.length>0){
     h+=`<button class="inst-approve-all" onclick="approveAllInInst('${escHtml(instName)}')">✓ ${pending.length}명 전체 승인 (결제 확인 완료)</button>`;
   }
-  h+='<table class="inst-users-tbl"><thead><tr><th style="width:68px;">상태</th><th>기수</th><th>이름</th><th>생년월일</th><th style="width:68px;text-align:center;">작업</th></tr></thead><tbody>';
+  h+='<table class="inst-users-tbl"><thead><tr><th style="width:60px;">상태</th><th>기수</th><th>이름</th><th>생년월일</th><th style="width:110px;text-align:center;">작업</th></tr></thead><tbody>';
   users.forEach((u,idx)=>{
     const badge=u.approved?'<span class="badge-approved">✓ 승인</span>':'<span class="badge-pending">⏳ 대기</span>';
-    const btn=u.approved
+    const apBtn=u.approved
       ?`<button class="btn-revoke" onclick="revokeUser('${escHtml(instName)}','${escHtml(u.name)}','${escHtml(u.birth)}')">취소</button>`
       :`<button class="btn-approve" onclick="approveUser('${escHtml(instName)}','${escHtml(u.name)}','${escHtml(u.birth)}')">승인</button>`;
+    const delBtn=`<button onclick="superDelUser('${escHtml(instName)}','${escHtml(u.name)}','${escHtml(u.birth)}')" style="background:#fce4e4;border:none;color:#e53935;padding:3px 7px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:3px;">삭제</button>`;
     h+=`<tr>
       <td>${badge}</td>
       <td>${escHtml(u.기수||'')}</td>
       <td><b>${escHtml(u.name)}</b></td>
       <td>${escHtml(u.birth)}</td>
-      <td style="text-align:center;">${btn}</td>
+      <td style="text-align:center;white-space:nowrap;">${apBtn}${delBtn}</td>
     </tr>`;
   });
   h+='</tbody></table>';
   return h;
+}
+
+// === 슈퍼 관리자: 특정 기관에 훈련생 추가 ===
+async function superAddUser(instName){
+  const cohortRaw=prompt(`"${instName}" 기관에 추가할 훈련생\n\n기수를 입력하세요 (숫자만):`);
+  if(cohortRaw===null) return;
+  const cohort=(cohortRaw||'').trim().replace(/[^0-9]/g,'');
+  if(!cohort){ altOpen('기수는 숫자만 입력하세요.',null); return; }
+  const name=(prompt(`이름을 입력하세요:`)||'').trim();
+  if(!name) return;
+  const birthRaw=prompt(`생년월일 6자리(YYMMDD)를 입력하세요:`);
+  if(birthRaw===null) return;
+  const birth=normBirth((birthRaw||'').trim());
+  if(birth.length!==6){ altOpen('생년월일 6자리를 입력하세요.',null); return; }
+  const all=getAllUsers();
+  if(all.find(u=>u.기관명===instName&&u.name===name&&u.birth===birth)){
+    altOpen('이미 등록된 훈련생입니다.',null); return;
+  }
+  const newUser={ 기관명:instName, 기수:cohort, name, birth, approved:true, approvedAt:Date.now(), createdAt:Date.now() };
+  all.push(newUser);
+  setAllUsers(all);
+  // Firestore 동기화
+  if(window._FB){
+    try{
+      await window._FB.authReady;
+      const docId=`${instName}__${cohort}__${name}__${birth}`.replace(/[\/\.]/g,'_');
+      await _FB.db.collection('users').doc(docId).set(newUser);
+    }catch(e){ console.error('superAddUser firestore',e); altOpen('클라우드 저장 실패: '+e.message,null); }
+  }
+  renderInstList();
+  const adm=getAdmins().find(a=>a.기관명===instName);
+  if(adm){const p=document.getElementById('instUsers_'+adm.id);if(p){p.classList.add('open');const b=document.getElementById('toggleBtn_'+adm.id);if(b){b.classList.add('open');b.textContent='🔽 회원 숨기기';}}}
+  altOpen(`✓ ${name} 훈련생 추가 완료`,null);
+}
+
+// === 슈퍼 관리자: 특정 훈련생 삭제 ===
+async function superDelUser(instName,name,birth){
+  if(!confirm(`"${instName}" 기관의\n${name} (${birth}) 훈련생을 영구 삭제합니다.\n시험 기록도 함께 삭제됩니다.\n\n계속하시겠습니까?`))return;
+  const all=getAllUsers();
+  const target=all.find(u=>u.기관명===instName&&u.name===name&&u.birth===birth);
+  if(!target){ altOpen('해당 훈련생을 찾을 수 없습니다.',null); return; }
+  const cohort=target.기수||'';
+  const remain=all.filter(u=>!(u.기관명===instName&&u.name===name&&u.birth===birth));
+  setAllUsers(remain);
+  // Firestore 동기화
+  if(window._FB){
+    try{
+      await window._FB.authReady;
+      const docId=`${instName}__${cohort}__${name}__${birth}`.replace(/[\/\.]/g,'_');
+      await _FB.db.collection('users').doc(docId).delete();
+    }catch(e){ console.error('superDelUser firestore',e); altOpen('클라우드 삭제 실패: '+e.message,null); }
+  }
+  // 시험 기록 로컬 삭제
+  try{
+    const uk=userKey(target);
+    Object.keys(localStorage).filter(k=>k.startsWith(`cbt_hist_${uk}_`)).forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+  renderInstList();
+  const adm=getAdmins().find(a=>a.기관명===instName);
+  if(adm){const p=document.getElementById('instUsers_'+adm.id);if(p){p.classList.add('open');const b=document.getElementById('toggleBtn_'+adm.id);if(b){b.classList.add('open');b.textContent='🔽 회원 숨기기';}}}
 }
 function toggleInstUsers(adminId){
   const p=document.getElementById('instUsers_'+adminId);
