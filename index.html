@@ -749,7 +749,23 @@ window._fbBootstrapped = (async()=>{
       if(sup && Object.keys(sup).length){
         localStorage.setItem('cbt_super_admin', JSON.stringify(sup));
       }
+    } else {
+      // Firestore에 슈퍼 관리자가 없는데 로컬에는 있으면 → 클라우드로 한 번 올림
+      try{
+        const localSup = JSON.parse(localStorage.getItem('cbt_super_admin') || 'null');
+        if(localSup && localSup.id && localSup.pw){
+          await db.collection('config').doc('super').set(localSup);
+          console.log('[Firestore bootstrap] 로컬 슈퍼 관리자를 클라우드로 업로드');
+        }
+      }catch(e){ console.error('[Firestore bootstrap] 슈퍼 업로드 실패', e); }
     }
+    // 슈퍼 관리자 실시간 리스너
+    db.collection('config').doc('super').onSnapshot(doc=>{
+      if(doc.exists){
+        const d=doc.data();
+        if(d && Object.keys(d).length) localStorage.setItem('cbt_super_admin', JSON.stringify(d));
+      }
+    });
     // users
     const userSnap = await db.collection('users').get();
     const users = userSnap.docs.map(d=>d.data());
@@ -1357,7 +1373,19 @@ function downloadProblemSample(){
 let SUPER_USER=null;
 let AD_LOGIN_MODE='s'; // 's'=super, 'i'=institution
 function getSuper(){try{return JSON.parse(localStorage.getItem('cbt_super_admin')||'null');}catch(e){return null;}}
-function setSuper(a){localStorage.setItem('cbt_super_admin',JSON.stringify(a));}
+function setSuper(a){
+  localStorage.setItem('cbt_super_admin',JSON.stringify(a));
+  // Firestore에도 동기화 (다른 기기/브라우저에서도 유지되도록)
+  if(window._FB){
+    (async()=>{
+      try{
+        await window._FB.authReady;
+        await _FB.db.collection('config').doc('super').set(a);
+        console.log('[setSuper] Firestore 동기화 완료');
+      }catch(e){ console.error('[setSuper] Firestore 동기화 실패', e); }
+    })();
+  }
+}
 function getAdmins(){
   try{
     let list=JSON.parse(localStorage.getItem('cbt_admins')||'[]');
@@ -2742,7 +2770,6 @@ window.jumpWrong = function(dir){
 const DEFAULT_INSTS = [
   '고려요양보호사교육원 원주점',
   '고려요양보호사교육원',
-  '원주보훈요양원',
 ];
 function renderInstOptions(){
   const sel=document.getElementById('lgInst');
