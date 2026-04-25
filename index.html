@@ -23,33 +23,39 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 html{--gsc:1;}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Malgun Gothic","맑은 고딕";background:var(--footer);overflow:hidden;height:100vh;-webkit-tap-highlight-color:transparent;font-size:calc(16px * var(--gsc));}
-/* 플로팅 글자 크기 버튼 — 어디서든 노출 */
-.fz-fab{position:fixed;right:14px;bottom:16px;z-index:9999;min-width:64px;height:64px;padding:0 14px;border-radius:32px;background:#3a4d6b;color:#fff;border:2px solid #fff;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;font-weight:bold;}
-.fz-fab:hover{background:#4a5d7b;}
-.fz-fab:active{transform:scale(.95);}
-.fz-fab .fz-a{font-size:15px;}
-.fz-fab .fz-b{font-size:26px;margin-left:2px;}
-.fz-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(40,50,70,.95);color:#fff;padding:11px 22px;border-radius:24px;font-size:16px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .25s;z-index:10000;}
-.fz-toast.show{opacity:1;}
-/* 모바일 반응형 */
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Malgun Gothic","맑은 고딕";background:var(--footer);overflow:hidden;height:100vh;-webkit-tap-highlight-color:transparent;}
+/* 좌석/응시번호/성명 정보 — 전 화면에서 비표시 (불필요한 공간 차지) */
+.seat,.hdr-info,.wait-seat{display:none !important;}
+/* 모바일 반응형: 시험 헤더 3분할(회차/글자크기/타이머) + 하단 버튼 가시성 */
 @media (max-width:900px){
-  .fz-fab{min-width:72px;height:64px;right:12px;bottom:14px;}
   .lg-card,.sel-card{padding:24px 16px !important;max-width:96% !important;}
   .lg-form input,.lg-form select{font-size:17px !important;padding:14px 12px !important;}
   .lg-btn{font-size:18px !important;padding:16px !important;}
   .sel-item{padding:18px 16px !important;font-size:16px !important;}
   .sel-item h3{font-size:18px !important;}
-  /* 시험 헤더의 글자 크기 버튼들도 모바일에서 표시 */
-  .hdr{flex-wrap:wrap;height:auto !important;min-height:80px;padding:8px;gap:6px;align-items:flex-start;}
-  .hdr-l,.hdr-c,.hdr-r{flex:0 0 auto;}
-  .hdr-r{width:100%;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start;}
-  .dg{display:flex;flex-wrap:wrap;align-items:center;gap:4px;}
-  .dl{font-size:11px !important;}
-  .db{min-width:48px;height:42px;padding:4px 6px;font-size:11px;border-radius:6px;}
-  .db em{font-size:11px;}
-  .cg{display:flex;align-items:center;gap:4px;}
-  .tmr{font-size:12px !important;}
+  /* 시험 헤더 — 좌:회차 / 가운데:글자크기 / 우:타이머 */
+  .hdr{height:auto !important;min-height:60px;padding:6px 8px;gap:6px;align-items:center;}
+  .hdr-l{flex:1 1 0;font-size:13px;font-weight:bold;color:#fff;line-height:1.2;text-align:left;padding:0 4px;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+  .hdr-c{flex:0 0 auto;display:flex;flex-direction:column;gap:3px;align-items:center;}
+  .hdr-r{flex:0 0 auto;}
+  .dg{display:flex;align-items:center;gap:3px;}
+  .dl{display:none !important;}
+  .db{min-width:38px;height:32px;padding:2px 5px;font-size:10px;border-radius:5px;line-height:1;}
+  .db em{font-size:9px;display:block;margin-top:1px;}
+  .cg{display:none !important;}
+  .tmr{padding:4px 8px;font-size:11px;}
+  .tmr-i{display:none;}
+  .tmr-t{font-size:11px;line-height:1.2;}
+  .tmr-r{font-size:14px !important;font-weight:bold;}
+  /* 하단 버튼 가시성 — 줄바꿈 + 작게 */
+  .ft{flex-wrap:wrap;height:auto !important;padding:6px;gap:6px;}
+  .ft-l,.ft-r{flex-wrap:wrap;gap:4px;}
+  .ft-r{width:100%;justify-content:space-between;}
+  .sb,.su{padding:8px 6px !important;font-size:11px !important;flex:1 1 auto;min-width:0;}
+  .nb{padding:8px 10px !important;font-size:13px !important;}
+  .pn{font-size:13px !important;}
+  /* 시험 본문 영역이 헤더/푸터 늘어난 만큼 더 작아지므로 답안표기란 숨김(모바일 플로팅 버튼 사용) */
+  .as{display:none !important;}
 }
 
 /* =================== SELECT SCREEN =================== */
@@ -831,26 +837,25 @@ window._fbBootstrapped = (async()=>{
   <div id="rvB" class="mb rv hid">📋 해설 보기 모드 — 정답과 해설을 확인하세요 <button onclick="home()">✕ 나가기</button></div>
   <div id="wgB" class="mb wg hid">🔄 틀린문제 다시풀기 — <span id="wgC"></span>문제 <button onclick="submit()">답안 제출</button></div>
   <div class="hdr">
-    <div class="hdr-l">
-      <div class="seat"><span class="s1">좌석번호</span><span class="s2">01</span></div>
-      <div class="hdr-info">응시번호: 350000001<br>성명: 김국시</div>
-    </div>
-    <div class="hdr-c" id="eT">요양보호사 자격시험 CBT 연습 1교시</div>
-    <div class="hdr-r">
+    <div class="hdr-l" id="eT">요양보호사 자격시험 CBT 연습 1교시</div>
+    <div class="hdr-c">
       <div class="dg">
-        <span class="dl">글자<br>크기</span>
+        <span class="dl">글자크기</span>
         <button class="db" onclick="dpi(this,1)" data-s="1">가<em>100%</em></button>
         <button class="db on" onclick="dpi(this,1.1)" data-s="1.1">가<em>110%</em></button>
         <button class="db" onclick="dpi(this,1.25)" data-s="1.25">가<em>125%</em></button>
       </div>
       <div class="cg">
-        <span class="cl">화면<br>배치</span>
-        <button class="cb on" id="c1" onclick="col(1)">1단 보기</button>
-        <button class="cb" id="c2" onclick="col(2)">2단 보기</button>
+        <span class="cl">화면배치</span>
+        <button class="cb on" id="c1" onclick="col(1)">1단</button>
+        <button class="cb" id="c2" onclick="col(2)">2단</button>
       </div>
+    </div>
+    <div class="hdr-r">
       <div class="tmr" id="tB">
         <div class="tmr-i">⏱</div>
-        <div class="tmr-t">제한시간 : <span id="tL">90분</span><br>남은시간 : <span class="tmr-r" id="tR">90:00</span></div>
+        <div class="tmr-t">남은시간<br><span class="tmr-r" id="tR">90:00</span></div>
+        <span id="tL" style="display:none">90분</span>
       </div>
     </div>
   </div>
@@ -896,9 +901,6 @@ window._fbBootstrapped = (async()=>{
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-<!-- 글자 크기 플로팅 버튼 (어느 화면에서도 노출) -->
-<button class="fz-fab" id="fzFab" onclick="fzCycle()" title="글자 크기 조절"><span class="fz-a">가</span><span class="fz-b">가</span></button>
 
 <!-- LOGIN SCREEN -->
 <div id="login" class="lg">
@@ -2365,27 +2367,6 @@ function dpi(b,s){
   document.documentElement.style.setProperty('--gsc',s);
   // 사용자 선호 저장 (다음 접속 시 복원)
   try{ localStorage.setItem('cbt_font_scale', String(s)); }catch(e){}
-}
-// 모바일에서 어디서든 누를 수 있는 플로팅 글자 크기 버튼
-function fzCycle(){
-  const opts=[1, 1.1, 1.25];
-  const cur=Number(localStorage.getItem('cbt_font_scale')||1.1);
-  const i=opts.findIndex(v=>Math.abs(v-cur)<0.01);
-  const next=opts[(i+1)%opts.length];
-  // 가짜 버튼 객체로 dpi 호출
-  const btns=document.querySelectorAll('.db');
-  let target=null;
-  btns.forEach(b=>{ if(Math.abs(Number(b.dataset.s)-next)<0.01) target=b; });
-  if(target) dpi(target, next); else dpi({classList:{add:()=>{},remove:()=>{}}}, next);
-  // 토스트 안내
-  const t=document.getElementById('fzToast') || (function(){
-    const d=document.createElement('div'); d.id='fzToast'; d.className='fz-toast';
-    document.body.appendChild(d); return d;
-  })();
-  t.textContent='글자 크기 ' + Math.round(next*100) + '%';
-  t.classList.add('show');
-  clearTimeout(window.__fzTm);
-  window.__fzTm=setTimeout(()=>t.classList.remove('show'), 1200);
 }
 // 페이지 로드 시 저장된 글자 크기 복원
 (function restoreFontScale(){
