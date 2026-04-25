@@ -24,10 +24,18 @@
 *{margin:0;padding:0;box-sizing:border-box;}
 html{--gsc:1;}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Malgun Gothic","맑은 고딕";background:var(--footer);overflow:hidden;height:100vh;-webkit-tap-highlight-color:transparent;}
-/* 좌석/응시번호/성명 정보 — 전 화면에서 비표시 (불필요한 공간 차지) */
-.seat,.hdr-info,.wait-seat{display:none !important;}
-/* 모바일 반응형: 시험 헤더 3분할(회차/글자크기/타이머) + 하단 버튼 가시성 */
+/* 기본: PC 전용 요소 표시 / 모바일 전용 요소 숨김 */
+.hdr-pc-only{display:flex;}
+.hdr-mobile-only{display:none;}
+/* PC: 이전/다음 버튼은 footer 가운데로 */
+.ft-l{flex:1 1 auto;justify-content:center !important;}
+.wait-seat{display:none !important;}
+/* 모바일 반응형 */
 @media (max-width:900px){
+  /* PC 전용 요소 숨기고 모바일 전용 표시 */
+  .hdr-pc-only{display:none !important;}
+  .hdr-mobile-only{display:flex !important;}
+  /* 로그인/회차 선택 화면 */
   .lg-card,.sel-card{padding:24px 16px !important;max-width:96% !important;}
   .lg-form input,.lg-form select{font-size:17px !important;padding:14px 12px !important;}
   .lg-btn{font-size:18px !important;padding:16px !important;}
@@ -35,26 +43,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica N
   .sel-item h3{font-size:18px !important;}
   /* 시험 헤더 — 좌:회차 / 가운데:글자크기 / 우:타이머 (3분할 균형) */
   .hdr{height:auto !important;min-height:54px;padding:6px;gap:4px;align-items:center;display:flex !important;}
-  .hdr-l{flex:0 0 auto;font-size:15px;font-weight:bold;color:#fff;line-height:1.15;text-align:left;padding:0 2px;white-space:nowrap;}
-  .hdr-c{flex:1 1 0;display:flex;justify-content:center;align-items:center;}
-  .hdr-r{flex:0 0 auto;}
-  .dg{display:flex;align-items:center;gap:3px;}
-  .dl{display:none !important;}
-  .db{min-width:34px;height:30px;padding:2px 4px;font-size:9px;border-radius:5px;line-height:1;}
-  .db em{font-size:9px;display:block;margin-top:1px;}
-  .cg{display:none !important;}
-  .tmr{padding:4px 8px;font-size:11px;border-radius:14px;}
-  .tmr-i{display:none;}
-  .tmr-t{font-size:10px;line-height:1.1;text-align:center;}
-  .tmr-r{font-size:14px !important;font-weight:bold;display:block;}
-  /* 하단 버튼 가시성 — 줄바꿈 + 작게 */
+  .hdr-l-mb{flex:0 0 auto;font-size:15px;font-weight:bold;color:#fff;line-height:1.15;text-align:left;padding:0 4px;white-space:nowrap;align-items:center;}
+  .hdr-c-mb{flex:1 1 0;justify-content:center;align-items:center;}
+  .hdr-r-mb{flex:0 0 auto;align-items:center;}
+  .hdr-c-mb .dg{display:flex;align-items:center;gap:3px;}
+  .hdr-c-mb .db{min-width:36px;height:32px;padding:2px 4px;font-size:9px;border-radius:5px;line-height:1;}
+  .hdr-c-mb .db em{font-size:9px;display:block;margin-top:1px;}
+  .hdr-r-mb .tmr{padding:4px 10px;font-size:11px;border-radius:14px;background:var(--hdr-dark);color:#fff;}
+  .hdr-r-mb .tmr-t{font-size:10px;line-height:1.1;text-align:center;}
+  .hdr-r-mb .tmr-r{font-size:14px;font-weight:bold;display:block;}
+  /* 하단 푸터 — 모바일에서는 이전/다음 가운데 + 셀렉터 줄바꿈 */
   .ft{flex-wrap:wrap;height:auto !important;padding:6px;gap:6px;}
-  .ft-l,.ft-r{flex-wrap:wrap;gap:4px;}
-  .ft-r{width:100%;justify-content:space-between;}
+  .ft-l{width:100%;justify-content:center !important;flex-wrap:nowrap;gap:6px;}
+  .ft-r{width:100%;display:flex;flex-wrap:wrap;gap:4px;justify-content:space-between;}
   .sb,.su{padding:8px 6px !important;font-size:11px !important;flex:1 1 auto;min-width:0;}
-  .nb{padding:8px 10px !important;font-size:13px !important;}
+  .nb{padding:8px 12px !important;font-size:13px !important;}
   .pn{font-size:13px !important;}
-  /* 시험 본문 영역이 헤더/푸터 늘어난 만큼 더 작아지므로 답안표기란 숨김(모바일 플로팅 버튼 사용) */
   .as{display:none !important;}
 }
 
@@ -837,25 +841,44 @@ window._fbBootstrapped = (async()=>{
   <div id="rvB" class="mb rv hid">📋 해설 보기 모드 — 정답과 해설을 확인하세요 <button onclick="home()">✕ 나가기</button></div>
   <div id="wgB" class="mb wg hid">🔄 틀린문제 다시풀기 — <span id="wgC"></span>문제 <button onclick="submit()">답안 제출</button></div>
   <div class="hdr">
-    <div class="hdr-l" id="eT">요양보호사 자격시험 CBT 연습 1교시</div>
-    <div class="hdr-c">
+    <!-- PC 전용: 좌석/응시번호/성명 -->
+    <div class="hdr-l hdr-pc-only">
+      <div class="seat"><span class="s1">좌석번호</span><span class="s2">01</span></div>
+      <div class="hdr-info">응시번호: 350000001<br>성명: 김국시</div>
+    </div>
+    <!-- PC: 가운데 시험제목 / 모바일: 좌측 짧은 회차명 -->
+    <div class="hdr-c hdr-pc-only" id="eT">요양보호사 자격시험 CBT 연습 1교시</div>
+    <div class="hdr-l-mb hdr-mobile-only" id="eTm">32회</div>
+    <!-- 모바일: 가운데 글자크기 -->
+    <div class="hdr-c-mb hdr-mobile-only">
       <div class="dg">
-        <span class="dl">글자크기</span>
+        <button class="db" onclick="dpi(this,1)" data-s="1">가<em>100%</em></button>
+        <button class="db on" onclick="dpi(this,1.1)" data-s="1.1">가<em>110%</em></button>
+        <button class="db" onclick="dpi(this,1.25)" data-s="1.25">가<em>125%</em></button>
+      </div>
+    </div>
+    <!-- PC 전용: 글자크기 + 화면배치 + 타이머 -->
+    <div class="hdr-r hdr-pc-only">
+      <div class="dg">
+        <span class="dl">글자<br>크기</span>
         <button class="db" onclick="dpi(this,1)" data-s="1">가<em>100%</em></button>
         <button class="db on" onclick="dpi(this,1.1)" data-s="1.1">가<em>110%</em></button>
         <button class="db" onclick="dpi(this,1.25)" data-s="1.25">가<em>125%</em></button>
       </div>
       <div class="cg">
-        <span class="cl">화면배치</span>
-        <button class="cb on" id="c1" onclick="col(1)">1단</button>
-        <button class="cb" id="c2" onclick="col(2)">2단</button>
+        <span class="cl">화면<br>배치</span>
+        <button class="cb on" id="c1" onclick="col(1)">1단 보기</button>
+        <button class="cb" id="c2" onclick="col(2)">2단 보기</button>
       </div>
-    </div>
-    <div class="hdr-r">
       <div class="tmr" id="tB">
         <div class="tmr-i">⏱</div>
-        <div class="tmr-t">남은시간<br><span class="tmr-r" id="tR">90:00</span></div>
-        <span id="tL" style="display:none">90분</span>
+        <div class="tmr-t">제한시간 : <span id="tL">90분</span><br>남은시간 : <span class="tmr-r" id="tR">90:00</span></div>
+      </div>
+    </div>
+    <!-- 모바일: 우측 타이머만 -->
+    <div class="hdr-r-mb hdr-mobile-only">
+      <div class="tmr">
+        <div class="tmr-t">남은시간<br><span class="tmr-r" id="tRm">90:00</span></div>
       </div>
     </div>
   </div>
@@ -2174,8 +2197,10 @@ function go(k){
   $('tL').textContent=minutes+'분';
   const ex=getExams()||{};
   const examName=ex[k]?ex[k].name:`제${k.replace('exam','')}회`;
-  // 헤더 공간 절약: "32회 오전" 형태만 표시 (앞의 "제" 제거)
-  $('eT').textContent=String(examName).replace(/^제/,'');
+  // PC 헤더(eT): 긴 제목 / 모바일 헤더(eTm): "32회 오전" 형태
+  $('eT').textContent = `요양보호사 자격시험 CBT 연습 · ${examName}`;
+  const eTm = document.getElementById('eTm');
+  if(eTm) eTm.textContent = String(examName).replace(/^제/,'');
   document.querySelectorAll('.db').forEach(b=>b.classList.toggle('on',b.dataset.s==='1.1'));
   document.getElementById('qP').style.removeProperty('--sc');
   $('c1').classList.add('on');$('c2').classList.remove('on');
@@ -2226,8 +2251,12 @@ function sT(){
   TI=setInterval(()=>{
     TL--;if(TL<=0){clearInterval(TI);submit();return;}
     const m=Math.floor(TL/60),s=TL%60;
-    const r=$('tR');r.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    const txt=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    const r=$('tR');r.textContent=txt;
     r.className=TL<300?'tmr-r dng':'tmr-r';
+    // 모바일 타이머도 동기화
+    const rm=document.getElementById('tRm');
+    if(rm){rm.textContent=txt;rm.className=TL<300?'tmr-r dng':'tmr-r';}
     if(TL===300&&!tmNtShown){tmNtShown=true;$('tmNt').classList.add('open');}
   },1000);
 }
