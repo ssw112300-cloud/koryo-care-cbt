@@ -1,5 +1,5 @@
 ﻿// K·CBT Service Worker — 진짜 오프라인 시험 가능 (그림문제 포함 전체 캐싱)
-const CACHE = 'koryo-cbt-v422-full';   // 강의 뒤로가기 2단계(레슨→목차→나가기) 정리
+const CACHE = 'koryo-cbt-v423-full';   // 강의 뒤로가기 2단계(레슨→목차→나가기) 정리
 
 // 핵심 파일 (즉시 캐시)
 const CORE_ASSETS = ['./', './index.html', './manifest.json'];
@@ -379,7 +379,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys => Promise.all(
-      keys.filter(k => k !== CACHE).map(k => caches.delete(k))
+      keys.filter(k => k.startsWith('koryo-cbt-') && k !== CACHE).map(k => caches.delete(k))
     )).then(() => self.clients.claim())
   );
 });
@@ -392,28 +392,31 @@ self.addEventListener('fetch', e => {
       url.includes('gstatic.com') || url.includes('firebase')) {
     return;
   }
-  e.respondWith(
-    fetch(e.request).then(res => {
-      if (res && res.status === 200 && res.type === 'basic') {
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone)).catch(()=>{});
-      }
-      return res;
-    }).catch(() => caches.match(e.request))
-  );
+  let cacheWrite = Promise.resolve();
+  const response = fetch(e.request).then(res => {
+    if (res && res.status === 200 && res.type === 'basic') {
+      const clone = res.clone();
+      cacheWrite = caches.open(CACHE).then(c => c.put(e.request, clone)).catch(()=>{});
+    }
+    return res;
+  }).catch(() => caches.match(e.request));
+  e.respondWith(response);
+  e.waitUntil(response.then(() => cacheWrite));
 });
 
 // 페이지 메시지 처리
 self.addEventListener('message', e => {
   if (e.data === 'CACHE_NOW') {
     // 핵심 + 그림문제 + 아이콘 모두 캐시 (오프라인 완전 대비)
-    cacheAll(e.source);
+    e.waitUntil(cacheAll(e.source));
     return;
   }
   if (e.data === 'CLEAR_CACHE') {
-    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => {
+    e.waitUntil(caches.keys().then(keys => Promise.all(
+      keys.filter(k => k.startsWith('koryo-cbt-')).map(k => caches.delete(k))
+    )).then(() => {
       e.source && e.source.postMessage({ type: 'CLEARED', ok: true });
-    });
+    }));
   }
 });
 
