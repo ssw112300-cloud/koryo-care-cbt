@@ -2111,10 +2111,11 @@ window.signatureWhite = function(canvas, context){
     <div class="dash-actions">
       <span id="sdMeName"></span>
       <button class="dash-btn" onclick="internOpen()">📅 실습일정</button>
-      <button class="dash-btn" onclick="sayuOpenAdmin()">📄 사유서</button>
+      <button class="dash-btn" onclick="sayuOpenAdmin('고려요양보호사교육원 원주점')">📄 원주점 사유서</button>
+      <button class="dash-btn" onclick="sayuOpenAdmin('고려요양보호사교육원')">📄 횡성 41기 사유서</button>
       <button class="dash-btn" onclick="oriAdminOpen()">📋 57기 오리엔테이션</button>
       <button class="dash-btn" onclick="ori58Open()">📋 58기 오리엔테이션</button>
-      <button class="dash-btn" onclick="superLogout()">로그아웃</button>
+      <button class="dash-btn" data-main41-admin="1" style="display:none" onclick="tt41Open()">📅 41기 시간표</button><button class="dash-btn" data-main41-admin="1" style="display:none" onclick="ori41Open()">📋 41기 오리엔테이션</button><button class="dash-btn" onclick="superLogout()">로그아웃</button>
     </div>
   </div>
   <div class="dash-body">
@@ -2177,7 +2178,7 @@ window.signatureWhite = function(canvas, context){
       <button onclick="oriAdminOpen()" style="margin-right:6px">📋 57기 오리엔테이션</button>
       <button onclick="ori58Open()" style="margin-right:6px">📋 58기 오리엔테이션</button>
       <button onclick="sayuOpenAdmin()" style="margin-right:6px">📄 사유서</button>
-      <button onclick="closeUsrUp()">✕</button>
+      <button class="" data-main41-admin="1" style="display:none" onclick="tt41Open()">📅 41기 시간표</button><button class="" data-main41-admin="1" style="display:none" onclick="ori41Open()">📋 41기 오리엔테이션</button><button onclick="closeUsrUp()">✕</button>
     </div>
     <div class="usrUp-tabs">
       <button class="usrUp-tab on" id="uTabX" onclick="uTab('x')">📊 엑셀 일괄 등록</button>
@@ -3105,11 +3106,13 @@ function adminLogin(){
     const sa=getSuper();
     if(!sa){err.innerHTML='등록된 로그인 관리자가 없습니다.<br>먼저 하단 버튼으로 등록하세요.';return;}
     if(sa.id!==id||sa.pw!==pw){err.textContent='❌ ID 또는 비밀번호가 일치하지 않습니다.';return;}
+    ADMIN_USER=null;safeRemoveItem('cbt_admin_curr');
     SUPER_USER=sa;safeSetItem('cbt_super_curr','1');
     closeAdLogin();showSuperDash();
   } else {
     const admin=getAdmins().find(a=>a.id===id&&a.pw===pw);
     if(!admin){err.textContent='❌ ID 또는 비밀번호가 일치하지 않습니다.';return;}
+    SUPER_USER=null;safeRemoveItem('cbt_super_curr');
     ADMIN_USER=admin;safeSetItem('cbt_admin_curr',JSON.stringify(admin));
     closeAdLogin();openUsrUp();
   }
@@ -4296,15 +4299,8 @@ function downloadSample(){
 
 // ============== 자동 로그인 복원 ==============
 (function(){
-  // 슈퍼 관리자 복원
-  try{
-    if(safeGetItem('cbt_super_curr')==='1'){
-      const sa=getSuper();
-      if(sa)SUPER_USER=sa;
-      else safeRemoveItem('cbt_super_curr');
-    }
-  }catch(e){safeRemoveItem('cbt_super_curr');}
-  // 기관 관리자 복원
+  // 기관 관리자 세션을 먼저 검증하고, 관리자 역할은 하나만 복원한다.
+  ADMIN_USER=null;SUPER_USER=null;
   try{
     const ad=safeGetItem('cbt_admin_curr');
     if(ad){
@@ -4314,6 +4310,17 @@ function downloadSample(){
       else safeRemoveItem('cbt_admin_curr');
     }
   }catch(e){safeRemoveItem('cbt_admin_curr');}
+  if(ADMIN_USER){
+    safeRemoveItem('cbt_super_curr');
+  }else{
+    try{
+      if(safeGetItem('cbt_super_curr')==='1'){
+        const sa=getSuper();
+        if(sa)SUPER_USER=sa;
+        else safeRemoveItem('cbt_super_curr');
+      }
+    }catch(e){safeRemoveItem('cbt_super_curr');}
+  }
   // 학생 복원 (승인 상태 확인)
   try{
     const s=safeGetItem('cbt_curr')||sessionStorage.getItem('cbt_curr');
@@ -12398,6 +12405,9 @@ if (location.protocol === 'file:') {
     if(window._isSayuOpen&&window._isSayuOpen()){ window.sayuBack&&window.sayuBack(); return true; }
     if(window._isLecOpen&&window._isLecOpen()){ return window.lecBack(); }
     if(isVisible('ori')){ var _oel=document.getElementById('ori'); if(_oel) _oel.classList.add('hidden'); return true; }
+    if(isVisible('ori41Admin')){window.ori41AdminClose&&window.ori41AdminClose();return true;}
+    if(isVisible('ori41Page')){window.ori41Close&&window.ori41Close();return true;}
+    if(isVisible('tt41')){window.tt41Close&&window.tt41Close();return true;}
     if(isVisible('ori58Admin')){ window.ori58AdminClose(); return true; }
     if(isVisible('ori58Page')){ window.ori58Close(); return true; }
     if(isVisible('tt58')){ window.tt58Close(); return true; }
@@ -15143,29 +15153,85 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
 <script>window.__TT57={"과정": {"표준": {"2026-08-05": {"1": "P", "2": "P", "3": "T", "4": "T", "5": "T", "6": "T", "7": "P", "8": "P"}, "2026-08-06": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "P", "7": "P", "8": "P"}, "2026-08-07": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "T", "7": "T", "8": "T"}, "2026-08-10": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "P", "7": "P", "8": "P"}, "2026-08-11": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "P", "6": "P", "7": "P", "8": "P"}, "2026-08-12": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "P", "6": "P", "7": "P", "8": "P"}, "2026-08-13": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "T", "7": "T", "8": "T"}, "2026-08-14": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "P", "7": "P", "8": "P"}, "2026-08-18": {"1": "T", "2": "P", "3": "P", "4": "P", "5": "T", "6": "T", "7": "P", "8": "P"}, "2026-08-19": {"1": "T", "2": "T", "3": "P", "4": "T", "5": "T", "6": "T", "7": "T", "8": "T"}, "2026-08-20": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "P", "7": "P", "8": "P"}, "2026-08-21": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "T", "7": "T", "8": "T"}, "2026-08-24": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "T", "7": "P", "8": "P"}, "2026-08-25": {"1": "P", "2": "P", "3": "P", "4": "P", "5": "P", "6": "P", "7": "P", "8": "T"}, "2026-08-26": {"1": "P", "2": "P", "3": "P", "4": "P", "5": "P", "6": "P", "7": "P", "8": "P"}, "2026-08-27": {"1": "T", "2": "T", "3": "T", "4": "P", "5": "P", "6": "P", "7": "P", "8": "P"}, "2026-08-28": {"1": "P", "2": "P", "3": "T", "4": "T", "5": "T", "6": "T", "7": "P", "8": "P"}, "2026-08-31": {"1": "P", "2": "P", "3": "P", "4": "T", "5": "T", "6": "T", "7": "T", "8": "T"}, "2026-09-01": {"1": "T", "2": "T", "3": "T", "4": "P", "5": "P", "6": "P", "7": "T", "8": "T"}, "2026-09-02": {"1": "T", "2": "P", "3": "T", "4": "P", "5": "T", "6": "T", "7": "T", "8": "T"}, "2026-09-03": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "P", "7": "P", "8": "P"}, "2026-09-04": {"1": "P", "2": "P", "3": "P", "4": "P", "5": "P", "6": "P", "7": "P", "8": "P"}, "2026-09-07": {"1": "P", "2": "P", "3": "P", "4": "P", "5": "P", "6": "P", "7": "P", "8": "P"}, "2026-09-08": {"1": "P", "2": "T", "3": "T", "4": "T", "5": "T", "6": "T", "7": "P", "8": "P"}, "2026-09-09": {"1": "P", "2": "T", "3": "T", "4": "T", "5": "P", "6": "P", "7": "P", "8": "T"}, "2026-09-10": {"1": "P", "2": "T", "3": "T", "4": "T", "5": "P", "6": "P", "7": "P", "8": "P"}, "2026-09-11": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "P", "6": "P", "7": "P", "8": "P"}, "2026-09-14": {"1": "P", "2": "P", "3": "T", "4": "T", "5": "T", "6": "T", "7": "P", "8": "P"}, "2026-09-15": {"1": "P", "2": "P", "3": "T", "4": "P", "5": "P", "6": "P", "7": "P", "8": "P"}, "2026-09-16": {"1": "T", "2": "P", "3": "T", "4": "T", "5": "T", "6": "P", "7": "P", "8": "P"}}, "간호조무사": {"2026-08-05": {"3": "T", "4": "T"}, "2026-08-07": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "T", "7": "T"}, "2026-08-10": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T"}, "2026-08-11": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "P", "6": "P"}, "2026-08-14": {"2": "T", "3": "T", "4": "T", "5": "T", "6": "P", "7": "P"}, "2026-08-20": {"3": "T", "4": "T", "5": "T", "6": "P", "7": "P", "8": "P"}, "2026-08-24": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "T", "7": "P", "8": "P"}, "2026-08-25": {"1": "P", "2": "P"}}, "사회복지사": {"2026-08-06": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T", "6": "P", "7": "P", "8": "P"}, "2026-08-07": {"1": "T", "2": "T", "3": "T", "4": "T"}, "2026-08-11": {"1": "T", "2": "T", "3": "T", "4": "T"}, "2026-08-12": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "P", "6": "P", "7": "P"}, "2026-08-13": {"1": "T", "2": "T", "3": "T", "4": "T", "5": "T"}, "2026-08-14": {"1": "T", "2": "T", "3": "T", "4": "T"}, "2026-08-20": {"3": "T", "4": "T", "5": "T", "6": "P", "7": "P", "8": "P"}, "2026-08-24": {"1": "T", "2": "T"}, "2026-08-25": {"7": "P", "8": "T"}}}, "자격소지자": {"간호조무사": ["이미정"], "사회복지사": ["전현숙", "이채선", "이세명", "김점예", "강민정"]}, "교시시각": {"1": "09:00", "2": "10:00", "3": "11:00", "4": "12:00", "5": "13:40", "6": "14:40", "7": "15:40", "8": "16:40"}};</script>
 <script>window.__SAYU_ROSTER57=[{"n":"강민정","b":"760326","g":"사회복지사"},{"n":"김미경","b":"761125","g":"표준"},{"n":"김순원","b":"570220","g":"표준"},{"n":"김점예","b":"721219","g":"사회복지사"},{"n":"박아선","b":"681124","g":"표준"},{"n":"박은자","b":"610409","g":"표준"},{"n":"변영숙","b":"650819","g":"표준"},{"n":"송은화","b":"700312","g":"표준"},{"n":"송정분","b":"570808","g":"표준"},{"n":"신선해","b":"800618","g":"표준"},{"n":"원옥희","b":"661116","g":"표준"},{"n":"원정숙","b":"760924","g":"표준"},{"n":"윤경주","b":"691226","g":"표준"},{"n":"이권영","b":"481010","g":"표준"},{"n":"이명순","b":"601002","g":"표준"},{"n":"이미정","b":"650710","g":"간호조무사"},{"n":"이미희","b":"670518","g":"표준"},{"n":"이세명","b":"610422","g":"사회복지사"},{"n":"이은경","b":"700504","g":"표준"},{"n":"이종남","b":"530612","g":"표준"},{"n":"이채선","b":"660106","g":"사회복지사"},{"n":"장광남","b":"590208","g":"표준"},{"n":"장금숙","b":"621128","g":"표준"},{"n":"장병익","b":"620210","g":"표준"},{"n":"전현숙","b":"640120","g":"사회복지사"},{"n":"정유라","b":"970820","g":"표준"},{"n":"정정옥","b":"660615","g":"표준"},{"n":"황귀정","b":"691105","g":"표준"},{"n":"황상하","b":"600621","g":"표준"},{"n":"황순애","b":"700712","g":"표준"},{"n":"황인산","b":"981219","g":"표준"}];window.__SAYU_ASSIGN57={"57기_김순원_570220":{"기수":"57기","성명":"김순원","생년월일":"570220","구분":"표준","items":[{"date":"2026-08-05","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"reason":"개인사정으로 결석"},{"date":"2026-08-14","type":"결석","이론":5,"실기":3,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-09-03","type":"출석체크누락","이론":0,"실기":1,"교시":[8],"과정":"표준","times":{"입실":"08:50","퇴실":"17:30"},"note":"8교시 미체크"}]},"57기_송은화_700312":{"기수":"57기","성명":"송은화","생년월일":"700312","구분":"표준","items":[{"date":"2026-08-05","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"reason":"개인사정으로 결석"},{"date":"2026-08-06","type":"결석","이론":5,"실기":3,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"reason":"개인사정으로 결석"},{"date":"2026-08-14","type":"외출","이론":0,"실기":1,"교시":[7],"과정":"표준","times":{"입실":"08:47","퇴실":"17:31"},"note":"7교시 미출석"},{"date":"2026-08-31","type":"조퇴","이론":1,"실기":0,"교시":[8],"과정":"표준","times":{"입실":"08:51","퇴실":"16:43"},"note":"8교시 미출석"},{"date":"2026-09-01","type":"지각","이론":1,"실기":0,"교시":[1],"과정":"표준","times":{"입실":"09:55","퇴실":"17:31"},"note":"1교시 미출석"},{"date":"2026-09-02","type":"지각","이론":1,"실기":0,"교시":[1],"과정":"표준","times":{"입실":"09:52","퇴실":"17:30"},"note":"1교시 미출석(X)"},{"date":"2026-09-03","type":"지각","이론":1,"실기":0,"교시":[1],"과정":"표준","times":{"입실":"09:52","퇴실":"17:31"},"note":"1교시 미출석(X)"},{"date":"2026-09-04","type":"지각","이론":0,"실기":1,"교시":[1],"과정":"표준","times":{"입실":"09:51","퇴실":"17:30"},"note":"1교시 미출석(X)"},{"date":"2026-09-07","type":"지각","이론":0,"실기":1,"교시":[1],"과정":"표준","times":{"입실":"09:59","퇴실":"17:30"},"note":"1교시 미출석(X)"},{"date":"2026-09-08","type":"지각","이론":0,"실기":1,"교시":[1],"과정":"표준","times":{"입실":"09:52","퇴실":"17:29"},"note":"1교시 미출석(X)"},{"date":"2026-09-09","type":"지각","이론":0,"실기":1,"교시":[1],"과정":"표준","times":{"입실":"09:50","퇴실":"17:31"},"note":"1교시 미출석(X)"},{"date":"2026-09-10","type":"지각","이론":0,"실기":1,"교시":[1],"과정":"표준","times":{"입실":"09:57","퇴실":"17:30"},"note":"1교시 미출석(X)"},{"date":"2026-09-11","type":"지각","이론":1,"실기":0,"교시":[1],"과정":"표준","times":{"입실":"09:51","퇴실":"17:32"},"note":"1교시 X, 2교시부터 출석"},{"date":"2026-09-14","type":"지각","이론":0,"실기":1,"교시":[1],"과정":"표준","times":{"입실":"09:52","퇴실":"17:30"},"note":"1교시 X, 2교시부터 출석"},{"date":"2026-09-15","type":"지각","이론":0,"실기":1,"교시":[1],"과정":"표준","times":{"입실":"09:53","퇴실":"17:30"},"note":"1교시 X, 2교시부터 출석"},{"date":"2026-09-16","type":"지각","이론":3,"실기":1,"교시":[1,2,3,4],"과정":"표준","times":{"입실":"13:40","퇴실":"17:30"},"note":"1~4교시 미출석"}]},"57기_송정분_570808":{"기수":"57기","성명":"송정분","생년월일":"570808","구분":"표준","items":[{"date":"2026-08-05","type":"지각","이론":0,"실기":1,"교시":[1],"과정":"표준","times":{"입실":"09:51","퇴실":"17:30"},"note":"1교시 미출석"},{"date":"2026-08-13","type":"조퇴","이론":4,"실기":0,"교시":[5,6,7,8],"과정":"표준","times":{"입실":"08:33","퇴실":"12:55"},"note":"5~8교시 미출석"},{"date":"2026-08-24","type":"외출","이론":1,"실기":0,"교시":[4],"과정":"표준","times":{"입실":"08:40","퇴실":"17:31"},"note":"4교시 미출석"},{"date":"2026-09-03","type":"지각","이론":4,"실기":0,"교시":[1,2,3,4],"과정":"표준","times":{"입실":"13:31","퇴실":"17:34"},"note":"1~4교시 미출석(X), 5교시부터 출석"},{"date":"2026-09-11","type":"결석","이론":1,"실기":0,"교시":[4],"과정":"표준","times":{"입실":"08:44","퇴실":"17:31"},"note":"4교시 X: 해당 교시 부재, 구체적인 사유 미기재"}]},"57기_이권영_481010":{"기수":"57기","성명":"이권영","생년월일":"481010","구분":"표준","items":[{"date":"2026-08-07","type":"지각","이론":1,"실기":0,"교시":[1],"과정":"표준","times":{"입실":"09:52","퇴실":"17:30"},"note":"1교시 미출석"},{"date":"2026-09-01","type":"외출","이론":0,"실기":1,"교시":[6],"과정":"표준","times":{"입실":"08:20","퇴실":"17:31"},"note":"6교시 미출석"},{"date":"2026-09-16","type":"지각","이론":2,"실기":0,"교시":[1,2],"과정":"표준","times":{"입실":"10:50","퇴실":"17:30"},"note":"1~2교시 미출석"}]},"57기_정유라_970820":{"기수":"57기","성명":"정유라","생년월일":"970820","구분":"표준","items":[{"date":"2026-08-11","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-08-19","type":"조퇴","이론":5,"실기":1,"교시":[3,4,5,6,7,8],"과정":"표준","times":{"입실":"08:57"},"note":"사용자 확인: 2교시까지만 수강, 3~8교시 부재. 퇴실 체크 누락.","reason":"건강악화로 조퇴하였습니다. 실수로 퇴실 체크를 하지 못했습니다."},{"date":"2026-08-28","type":"지각","이론":0,"실기":3,"교시":[1,2,7],"과정":"표준","times":{"입실":"10:50","퇴실":"17:30"},"note":"1~2교시·7교시 미출석"},{"date":"2026-09-07","type":"결석","이론":0,"실기":8,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}}]},"57기_김미경_761125":{"기수":"57기","성명":"김미경","생년월일":"761125","구분":"표준","items":[{"date":"2026-08-11","type":"조퇴","이론":0,"실기":3,"교시":[6,7,8],"과정":"표준","times":{"입실":"08:49","퇴실":"14:34"},"note":"6~8교시 미출석"},{"date":"2026-08-18","type":"지각","이론":1,"실기":3,"교시":[1,2,3,4],"과정":"표준","times":{"입실":"13:30","퇴실":"17:30"},"note":"1~4교시 미출석"},{"date":"2026-08-24","type":"지각","이론":2,"실기":0,"교시":[1,2],"과정":"표준","times":{"입실":"10:58","퇴실":"17:31"},"note":"1~2교시 미출석"},{"date":"2026-09-15","type":"결석","이론":1,"실기":7,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"note":"1~8교시 출석 및 퇴실 기록 없음"}]},"57기_박아선_681124":{"기수":"57기","성명":"박아선","생년월일":"681124","구분":"표준","items":[{"date":"2026-08-12","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-08-28","type":"외출","이론":1,"실기":0,"교시":[3],"과정":"표준","times":{"입실":"08:46","퇴실":"17:30"},"note":"3교시 미출석"},{"date":"2026-09-02","type":"지각","이론":1,"실기":0,"교시":[1],"과정":"표준","times":{"입실":"09:51","퇴실":"17:30"},"note":"1교시 미출석(X)"},{"date":"2026-09-09","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-09-15","type":"결석","이론":1,"실기":7,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"note":"1~8교시 출석 및 퇴실 기록 없음"}]},"57기_이미희_670518":{"기수":"57기","성명":"이미희","생년월일":"670518","구분":"표준","items":[{"date":"2026-08-12","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-08-28","type":"조퇴","이론":0,"실기":2,"교시":[7,8],"과정":"표준","times":{"입실":"08:55","퇴실":"15:32"},"note":"7~8교시 미출석"},{"date":"2026-09-09","type":"조퇴","이론":1,"실기":3,"교시":[5,6,7,8],"과정":"표준","times":{"입실":"08:50","퇴실":"13:00"},"note":"4교시 후 조퇴"},{"date":"2026-09-11","type":"조퇴","이론":0,"실기":2,"교시":[7,8],"과정":"표준","times":{"입실":"08:53","퇴실":"15:33"},"note":"15:33 퇴실. 6교시 14:40~15:30 50분 인정, 7·8교시 부재"},{"date":"2026-09-15","type":"조퇴","이론":0,"실기":2,"교시":[7,8],"과정":"표준","times":{"입실":"08:53","퇴실":"15:31"},"note":"15:31 퇴실: 6교시 50분 인정. 7교시 15:30 체크가 있으나 15:40 수업 시작 전 퇴실하여 7~8교시 부재"}]},"57기_장금숙_621128":{"기수":"57기","성명":"장금숙","생년월일":"621128","구분":"표준","items":[{"date":"2026-08-12","type":"지각","이론":4,"실기":0,"교시":[1,2,3,4],"과정":"표준","times":{"입실":"13:39","퇴실":"17:30"},"note":"1~4교시 미출석(X), 5교시부터 출석"},{"date":"2026-08-31","type":"지각","이론":1,"실기":3,"교시":[1,2,3,4],"과정":"표준","times":{"입실":"13:35","퇴실":"17:30"},"note":"1~4교시 미출석(X), 5교시부터 출석"},{"date":"2026-09-02","type":"지각","이론":2,"실기":2,"교시":[1,2,3,4],"과정":"표준","times":{"입실":"13:33","퇴실":"17:30"},"note":"1~4교시 미출석(X), 5교시부터 출석"},{"date":"2026-09-10","type":"지각","이론":3,"실기":1,"교시":[1,2,3,4],"과정":"표준","times":{"입실":"13:30","퇴실":"17:30"},"note":"1~4교시 미출석(X)"},{"date":"2026-09-16","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}}]},"57기_장광남_590208":{"기수":"57기","성명":"장광남","생년월일":"590208","구분":"표준","items":[{"date":"2026-08-12","type":"출석체크누락","이론":1,"실기":0,"교시":[4],"과정":"표준","times":{"입실":"08:39","퇴실":"17:30"},"note":"4교시 미체크(X)"},{"date":"2026-08-28","type":"조퇴","이론":0,"실기":2,"교시":[7,8],"과정":"표준","times":{"입실":"08:40","퇴실":"15:31"},"note":"7~8교시 미출석"},{"date":"2026-09-04","type":"결석","이론":0,"실기":8,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-09-07","type":"지각","이론":0,"실기":3,"교시":[1,7,8],"과정":"표준","times":{"입실":"09:56","퇴실":"15:32"},"note":"1교시 미출석(X), 6교시 후 조퇴"},{"date":"2026-09-08","type":"조퇴","이론":2,"실기":2,"교시":[5,6,7,8],"과정":"표준","times":{"입실":"08:32","퇴실":"12:40"},"note":"12:40 퇴실. 4교시 12:00~12:40 수업 40분 인정, 5~8교시 부재"},{"date":"2026-09-09","type":"조퇴","이론":1,"실기":3,"교시":[5,6,7,8],"과정":"표준","times":{"입실":"08:46","퇴실":"12:51"},"note":"4교시 후 조퇴"},{"date":"2026-09-10","type":"지각","이론":0,"실기":1,"교시":[1],"과정":"표준","times":{"입실":"09:53","퇴실":"17:30"},"note":"1교시 미출석(X)"},{"date":"2026-09-11","type":"외출","이론":3,"실기":0,"교시":[2,3,4],"과정":"표준","times":{"입실":"08:54","퇴실":"17:32","외출":"10:07","복귀":"13:27"},"note":"10:07 외출·13:27 복귀. 2교시 실제 수업 7분, 3·4교시 X: 2~4교시 부재"},{"date":"2026-09-14","type":"외출","이론":1,"실기":0,"교시":[3],"과정":"표준","times":{"입실":"08:37","퇴실":"17:30","외출":"10:51"},"note":"3교시 칸 10:51 외출 표기: 3교시 출석 인정 안 됨. 4교시 11:50 체크. 별도 복귀시각 미기재"},{"date":"2026-09-16","type":"출석체크누락","이론":0,"실기":1,"교시":[7],"과정":"표준","times":{"입실":"08:36","퇴실":"17:30"},"note":"7교시 미출석"}]},"57기_변영숙_650819":{"기수":"57기","성명":"변영숙","생년월일":"650819","구분":"표준","items":[{"date":"2026-08-13","type":"외출","이론":1,"실기":0,"교시":[5],"과정":"표준","times":{"입실":"08:39","외출":"12:52","복귀":"14:30","퇴실":"17:30"},"note":"5교시 미출석"},{"date":"2026-08-14","type":"결석","이론":5,"실기":3,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-09-03","type":"결석","이론":5,"실기":3,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-09-09","type":"조퇴","이론":1,"실기":3,"교시":[5,6,7,8],"과정":"표준","times":{"입실":"08:50","퇴실":"12:51"},"note":"4교시 후 조퇴"},{"date":"2026-09-11","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"note":"1~8교시 출석 및 퇴실 기록 없음"},{"date":"2026-09-16","type":"지각","이론":1,"실기":0,"교시":[1],"과정":"표준","times":{"입실":"09:57","퇴실":"17:30"},"note":"1교시 미출석"}]},"57기_황상하_600621":{"기수":"57기","성명":"황상하","생년월일":"600621","구분":"표준","items":[{"date":"2026-08-13","type":"외출","이론":1,"실기":0,"교시":[5],"과정":"표준","times":{"입실":"08:55","외출":"12:53","복귀":"14:31","퇴실":"17:30"},"note":"5교시 미출석"},{"date":"2026-08-25","type":"외출","이론":0,"실기":1,"교시":[3],"과정":"표준","times":{"입실":"09:08","퇴실":"17:30"},"note":"3교시 미출석"},{"date":"2026-08-28","type":"외출","이론":1,"실기":0,"교시":[5],"과정":"표준","times":{"입실":"08:54","외출":"13:00","퇴실":"17:30"},"note":"5교시 미출석"},{"date":"2026-08-31","type":"외출","이론":0,"실기":1,"교시":[2],"과정":"표준","times":{"입실":"08:56","퇴실":"17:30"},"note":"2교시 미출석"},{"date":"2026-09-09","type":"조퇴","이론":1,"실기":3,"교시":[5,6,7,8],"과정":"표준","times":{"입실":"08:51","퇴실":"12:51"},"note":"4교시 후 조퇴"},{"date":"2026-09-10","type":"외출","이론":2,"실기":1,"교시":[3,4,5],"과정":"표준","times":{"입실":"08:56","퇴실":"17:30","외출":"10:51","복귀":"14:33"},"note":"10:51 외출·14:33 복귀, 3~5교시 부재(교시별 실제 수업 40분 미충족)"},{"date":"2026-09-11","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"note":"1~8교시 출석 및 퇴실 기록 없음"}]},"57기_이채선_660106":{"기수":"57기","성명":"이채선","생년월일":"660106","구분":"사회복지사","items":[{"date":"2026-08-13","type":"조퇴","이론":1,"실기":0,"교시":[5],"과정":"사회복지사","times":{"입실":"08:45","퇴실":"12:50"},"note":"5교시 미출석"}]},"57기_전현숙_640120":{"기수":"57기","성명":"전현숙","생년월일":"640120","구분":"사회복지사","items":[{"date":"2026-08-13","type":"조퇴","이론":1,"실기":0,"교시":[5],"과정":"사회복지사","times":{"입실":"08:43","퇴실":"12:50"},"note":"5교시 미출석"},{"date":"2026-08-20","type":"지각","이론":2,"실기":0,"교시":[3,4],"과정":"사회복지사","times":{"입실":"13:32","퇴실":"17:32"},"note":"3~4교시 미출석"},{"date":"2026-08-24","type":"결석","이론":2,"실기":0,"교시":[1,2],"과정":"사회복지사","times":{}},{"date":"2026-08-25","type":"결석","이론":1,"실기":1,"교시":[7,8],"과정":"사회복지사","times":{}}]},"57기_윤경주_691226":{"기수":"57기","성명":"윤경주","생년월일":"691226","구분":"표준","items":[{"date":"2026-08-14","type":"조퇴","이론":2,"실기":3,"교시":[4,5,6,7,8],"과정":"표준","times":{"입실":"08:52","퇴실":"11:53"},"note":"4~8교시 미출석"},{"date":"2026-08-27","type":"지각","이론":3,"실기":1,"교시":[1,2,3,4],"과정":"표준","times":{"입실":"13:33","퇴실":"17:30"},"note":"1~4교시 미출석(X), 5교시부터 출석"},{"date":"2026-09-09","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-09-11","type":"결석","이론":0,"실기":1,"교시":[5],"과정":"표준","times":{"입실":"08:46","퇴실":"17:32"},"note":"5교시 X: 해당 교시 부재, 구체적인 사유 미기재"},{"date":"2026-09-15","type":"결석","이론":1,"실기":7,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"note":"1~8교시 출석 및 퇴실 기록 없음"}]},"57기_신선해_800618":{"기수":"57기","성명":"신선해","생년월일":"800618","구분":"표준","items":[{"date":"2026-08-14","type":"조퇴","이론":0,"실기":2,"교시":[7,8],"과정":"표준","times":{"입실":"08:50","퇴실":"15:31"},"note":"7~8교시 미출석"},{"date":"2026-08-26","type":"조퇴","이론":0,"실기":2,"교시":[7,8],"과정":"표준","times":{"입실":"08:53","퇴실":"15:32"},"note":"7~8교시 미출석"},{"date":"2026-08-27","type":"외출","이론":0,"실기":1,"교시":[6],"과정":"표준","times":{"입실":"08:52","퇴실":"17:30"},"note":"6교시 미출석"},{"date":"2026-08-31","type":"조퇴","이론":1,"실기":0,"교시":[8],"과정":"표준","times":{"입실":"08:57","퇴실":"16:32"},"note":"8교시 미출석"},{"date":"2026-09-03","type":"출석체크누락","이론":0,"실기":1,"교시":[8],"과정":"표준","times":{"입실":"08:55","퇴실":"17:32"},"note":"8교시 미체크"},{"date":"2026-09-04","type":"조퇴","이론":0,"실기":4,"교시":[5,6,7,8],"과정":"표준","times":{"입실":"08:55","퇴실":"12:50"},"note":"4교시 후 조퇴"},{"date":"2026-09-09","type":"조퇴","이론":1,"실기":1,"교시":[7,8],"과정":"표준","times":{"입실":"08:57","퇴실":"15:31"},"note":"6교시 후 조퇴"},{"date":"2026-09-11","type":"출석체크누락","과정":"표준","times":{"입실":"08:53","퇴실":"17:32"},"note":"17:32 퇴실 기록은 있으나 8교시 출석 칸 공란: 8교시 실기 1시간 부재 (원본 PDF 1쪽 8교시 재확인)","교시":[8],"이론":0,"실기":1},{"date":"2026-09-16","type":"조퇴","이론":0,"실기":2,"교시":[7,8],"과정":"표준","times":{"입실":"08:54","퇴실":"15:33"}}]},"57기_김점예_721219":{"기수":"57기","성명":"김점예","생년월일":"721219","구분":"사회복지사","items":[{"date":"2026-08-14","type":"지각","이론":1,"실기":0,"교시":[1],"과정":"사회복지사","times":{"입실":"09:55","퇴실":"12:53"},"note":"1교시 미출석"},{"date":"2026-08-20","type":"지각","이론":3,"실기":1,"교시":[3,4,5,7],"과정":"사회복지사","times":{"입실":"14:47","퇴실":"17:30"},"note":"3~5교시, 7교시 미출석"}]},"57기_황순애_700712":{"기수":"57기","성명":"황순애","생년월일":"700712","구분":"표준","items":[{"date":"2026-08-18","type":"조퇴","이론":0,"실기":1,"교시":[8],"과정":"표준","times":{"입실":"08:46","퇴실":"16:33"},"note":"8교시 미출석"},{"date":"2026-08-24","type":"결석","이론":6,"실기":2,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-08-27","type":"조퇴","이론":0,"실기":1,"교시":[8],"과정":"표준","times":{"입실":"08:52","퇴실":"16:32"},"note":"8교시 미출석"},{"date":"2026-09-03","type":"결석","이론":5,"실기":3,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-09-09","type":"조퇴","이론":1,"실기":0,"교시":[8],"과정":"표준","times":{"입실":"08:50","퇴실":"16:31"},"note":"7교시 후 조퇴"},{"date":"2026-09-15","type":"조퇴","이론":0,"실기":2,"교시":[7,8],"과정":"표준","times":{"입실":"08:54","퇴실":"15:30"},"note":"15:30 퇴실: 6교시 50분 인정, 7~8교시 부재"}]},"57기_이명순_601002":{"기수":"57기","성명":"이명순","생년월일":"601002","구분":"표준","items":[{"date":"2026-08-19","type":"조퇴","이론":1,"실기":0,"교시":[8],"과정":"표준","times":{"입실":"08:51","퇴실":"16:30"},"note":"8교시 미출석"},{"date":"2026-09-04","type":"조퇴","이론":0,"실기":2,"교시":[7,8],"과정":"표준","times":{"입실":"08:52","퇴실":"15:31"},"note":"6교시 후 조퇴"},{"date":"2026-09-08","type":"조퇴","이론":0,"실기":1,"교시":[8],"과정":"표준","times":{"입실":"08:53","퇴실":"16:30"},"note":"7교시 후 조퇴"},{"date":"2026-09-11","type":"출석체크누락","이론":0,"실기":1,"교시":[8],"과정":"표준","times":{"입실":"08:52","퇴실":"17:32"},"note":"17:32 퇴실 기록은 있으나 8교시 출석 칸 공란: 8교시 부재"}]},"57기_강민정_760326":{"기수":"57기","성명":"강민정","생년월일":"760326","구분":"사회복지사","items":[{"date":"2026-08-20","type":"지각","이론":2,"실기":0,"교시":[3,4],"과정":"사회복지사","times":{"입실":"13:40","퇴실":"17:30"},"note":"3~4교시 미출석"},{"date":"2026-08-24","type":"결석","이론":2,"실기":0,"교시":[1,2],"과정":"사회복지사","times":{}}]},"57기_이미정_650710":{"기수":"57기","성명":"이미정","생년월일":"650710","구분":"간호조무사","items":[{"date":"2026-08-20","type":"외출","이론":1,"실기":0,"교시":[5],"과정":"간호조무사","times":{"입실":"10:54","퇴실":"17:30"},"note":"5교시 미출석"},{"date":"2026-08-24","type":"외출","이론":1,"실기":0,"교시":[1],"과정":"간호조무사","times":{"입실":"08:56","외출":"08:56","복귀":"10:00","퇴실":"17:31"},"note":"1교시 미출석"}]},"57기_황인산_981219":{"기수":"57기","성명":"황인산","생년월일":"981219","구분":"표준","items":[{"date":"2026-08-25","type":"외출","이론":0,"실기":1,"교시":[5],"과정":"표준","times":{"입실":"09:05","퇴실":"17:30"},"note":"5교시 미출석"},{"date":"2026-09-04","type":"결석","이론":0,"실기":8,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-09-09","type":"조퇴","이론":1,"실기":3,"교시":[5,6,7,8],"과정":"표준","times":{"입실":"08:50","퇴실":"12:51"},"note":"4교시 후 조퇴"},{"date":"2026-09-11","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"note":"1~8교시 출석 및 퇴실 기록 없음"},{"date":"2026-09-15","type":"조퇴","이론":0,"실기":4,"교시":[5,6,7,8],"과정":"표준","times":{"입실":"08:51","퇴실":"12:59"},"note":"4교시 칸 12:59 조퇴 표기는 입실시각이 아님. 12:50 수업 종료 후 조퇴하여 4교시 인정, 5~8교시 부재"}]},"57기_장병익_620210":{"기수":"57기","성명":"장병익","생년월일":"620210","구분":"표준","items":[{"date":"2026-09-02","type":"결석","이론":6,"실기":2,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-09-10","type":"결석","이론":3,"실기":5,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-09-16","type":"조퇴","이론":1,"실기":3,"교시":[5,6,7,8],"과정":"표준","times":{"입실":"08:49","퇴실":"13:14"}}]},"57기_박은자_610409":{"기수":"57기","성명":"박은자","생년월일":"610409","구분":"표준","items":[{"date":"2026-09-03","type":"조퇴","이론":0,"실기":2,"교시":[7,8],"과정":"표준","times":{"입실":"08:37","퇴실":"15:32"},"note":"6교시 후 조퇴"}]},"57기_이종남_530612":{"기수":"57기","성명":"이종남","생년월일":"530612","구분":"표준","items":[{"date":"2026-09-07","type":"결석","이론":0,"실기":8,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}}]},"57기_정정욱_660615":{"기수":"57기","성명":"정정욱","생년월일":"660615","구분":"표준","items":[{"date":"2026-09-07","type":"조퇴","이론":0,"실기":1,"교시":[8],"과정":"표준","times":{"입실":"08:47","퇴실":"16:32"},"note":"7교시 후 조퇴"},{"date":"2026-09-08","type":"지각","이론":1,"실기":0,"교시":[2],"과정":"표준","times":{"입실":"08:57","퇴실":"17:30"},"note":"2교시 미출석(X)"},{"date":"2026-09-15","type":"결석","이론":1,"실기":7,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"note":"1~8교시 출석 및 퇴실 기록 없음"}]},"57기_원정숙_760924":{"기수":"57기","성명":"원정숙","생년월일":"760924","구분":"표준","items":[{"date":"2026-09-10","type":"결석","이론":3,"실기":5,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}},{"date":"2026-09-14","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"note":"1~8교시 출석 및 퇴실 기록 없음"}]},"57기_원옥희_661116":{"기수":"57기","성명":"원옥희","생년월일":"661116","구분":"표준","items":[{"date":"2026-09-14","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"note":"1~8교시 출석 및 퇴실 기록 없음"},{"date":"2026-09-15","type":"결석","이론":1,"실기":7,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{},"note":"1~8교시 출석 및 퇴실 기록 없음"},{"date":"2026-09-16","type":"지각","이론":3,"실기":1,"교시":[1,2,3,4],"과정":"표준","times":{"입실":"13:32","퇴실":"17:30"},"note":"1~4교시 미출석"}]},"57기_정정옥_660615":{"기수":"57기","성명":"정정옥","생년월일":"660615","구분":"표준","items":[{"date":"2026-09-16","type":"결석","이론":4,"실기":4,"교시":[1,2,3,4,5,6,7,8],"과정":"표준","times":{}}]}};window.__SAYU_DATES57=["2026-08-05","2026-08-06","2026-08-07","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04","2026-09-07","2026-09-08","2026-09-09","2026-09-10","2026-09-11","2026-09-14","2026-09-15","2026-09-16"];</script>
 <script>
+(function(root){
+  'use strict';
+  var TYPES=['결석','지각','조퇴','외출','출석체크누락'];
+  function periods(values){
+    return Array.from(new Set((values||[]).map(Number).filter(function(n){return Number.isInteger(n)&&n>=1&&n<=8;}))).sort(function(a,b){return a-b;});
+  }
+  function eventsOf(item){
+    var raw=Array.isArray(item.events)&&item.events.length?item.events:[{type:item.type||'결석',periods:item['교시']||[]}];
+    return raw.map(function(e){return {type:e.type,periods:periods(e.periods||e['교시']||[])};}).filter(function(e){return TYPES.indexOf(e.type)>=0;});
+  }
+  function summarize(events,map){
+    if(!map)throw new Error('이 날짜의 과정별 시간표가 없습니다.');
+    var gy=periods(events.reduce(function(a,e){return a.concat(e.periods||[]);},[]));
+    if(!gy.length)throw new Error('빠진 교시를 선택해 주세요.');
+    gy.forEach(function(g){if(map[String(g)]!=='T'&&map[String(g)]!=='P')throw new Error(g+'교시는 본인 과정의 수업이 아닙니다.');});
+    return {periods:gy,theory:gy.filter(function(g){return map[String(g)]==='T';}).length,skills:gy.filter(function(g){return map[String(g)]==='P';}).length};
+  }
+  function assignment(existing,events,map,course){
+    var clean=events.map(function(e){
+      if(TYPES.indexOf(e.type)<0)throw new Error('부재 유형을 확인해 주세요.');
+      var gy=periods(e.periods||[]);if(!gy.length)throw new Error(e.type+'의 빠진 교시를 선택해 주세요.');
+      return {type:e.type,periods:gy};
+    });
+    var total=summarize(clean,map), result=Object.assign({},existing||{});
+    result.events=clean;
+    result.types=Array.from(new Set(clean.map(function(e){return e.type;})));
+    result.type=result.types.join('·');
+    result['교시']=total.periods;result['이론']=total.theory;result['실기']=total.skills;result['과정']=course;
+    if(!existing){result.times={};result.reason='';result.gyosi='';}
+    return result;
+  }
+  function label(item){return eventsOf(item).map(function(e){return e.type+(e.periods.length?' '+e.periods.join('·')+'교시':'');}).join(' / ');}
+  function mergeForStudent(latest,submitted){
+    var edits={};submitted.forEach(function(it){edits[it.date]=it;});
+    return latest.map(function(it){
+      var edit=edits[it.date];if(!edit)return it;
+      return Object.assign({},it,{reason:String(edit.reason||'').trim(),gyosi:String(edit.gyosi||'')});
+    });
+  }
+  var api={types:TYPES,periods:periods,eventsOf:eventsOf,summarize:summarize,assignment:assignment,label:label,mergeForStudent:mergeForStudent};
+  root.SAYU_FLOW=api;
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(typeof window!=='undefined'?window:globalThis);
+
 (function(){
   var ROSTER = window.__SAYU_ROSTER || [];
   var DATES  = window.__SAYU_DATES  || [];
-  var GISU   = '56기';
-  var COL    = 'sayu56';
-  // ── 기수별 사유서 ──  새 기수가 시작되면 GISU_LIST 맨 앞에 추가만 하면 됨.
-  // 컬렉션은 기수별 분리(sayu56, sayu57, …) → 이전 기수 데이터는 절대 건드리지 않음(영구 보관).
-  var GISU_LIST = ['57기','56기'];
-  var ADM_GISU  = GISU_LIST[0];
-  function colFor(g){ var n=String(g||'').replace(/[^0-9]/g,''); return n?('sayu'+n):COL; }
-  // ── 57기 시간표(과정별) ──  자격소지자는 표준과 다른 시간표를 듣는다. 결시는 반드시 본인 과정 기준으로 계산.
-  function tt57(){ return window.__TT57 || null; }
-  function courseOf(name){                       // 이름 → 과정명
-    var T=tt57(); if(!T) return '표준';
-    var q=T['자격소지자']||{}, nm=String(name||'').trim();
-    for(var k in q){ if((q[k]||[]).indexOf(nm)>=0) return k; }
-    return '표준';
+  var GISU='56기',COL='sayu56',GISU_LIST=['58기','57기','56기'],ADM_GISU='58기';
+  var INST_W='고려요양보호사교육원 원주점',INST_M='고려요양보호사교육원',ADM_INST=INST_W;
+  function ownInst(){var u=window.ADMIN_USER||window.CURR_USER||{};return String(u['기관명']||INST_W).trim();}
+  function syScopeAllowed(inst){return !!window.SUPER_USER||!!(window.ADMIN_USER&&ownInst()===inst);}
+  function currentInst(){var open=$('sayuAdmin');return open&&open.classList.contains('open')?ADM_INST:ownInst();}
+  function colFor(g,inst){var n=String(g||'').replace(/\D/g,'');return (inst||currentInst())===INST_M?'sayu_main'+n:(n?'sayu'+n:COL);}
+  function tt57(){
+    if(ADM_INST===INST_M)return ADM_GISU==='41기'?window.__TT41||null:null;
+    if(ADM_GISU==='57기')return window.__TT57||null;
+    if(ADM_GISU==='58기'&&window.C58){
+      var out={'과정':{},'교시시각':{},'教育時間':{}};
+      Object.keys(C58.courses).forEach(function(k){var c=C58.courses[k],name=k==='std'?'표준':k==='sw'?'사회복지사':k==='rn'?'간호사':'간호조무사',days={};
+        (c.tt58||[]).forEach(function(d){var gm={};(d.p||[]).forEach(function(p){var mode=String(p.g||'').indexOf('이론')===0?'T':String(p.g||'').indexOf('실기')===0?'P':null;if(mode){gm[p.n]=mode;out['교시시각'][p.n]=p.t;}});if(Object.keys(gm).length)days[d.date]=gm;});out['과정'][name]=days;});
+      return out;
+    }
+    return null;
   }
-  function ttOf(course){ var T=tt57(); return (T&&T['과정']&&T['과정'][course])||null; }
-  function ttDates(course){ var t=ttOf(course); return t?Object.keys(t).sort():[]; }
-  function ttGyosi(course,date){ var t=ttOf(course); return (t&&t[date])?t[date]:null; }   // {교시:'T'|'P'}
-  function ttTime(g){ var T=tt57(); return (T&&T['교시시각']&&T['교시시각'][String(g)])||''; }
-  function isTT57(){ return ADM_GISU==='57기' && !!tt57(); }
+  function courseOf(name,birth){
+    if(ADM_INST===INST_M){var r=(_adRosterX[rosterKey()]||[]).find(function(x){return x.n===name&&(!birth||x.b===birth);});return r&&r.g||_adAssign.gubun||'표준';}
+    if(ADM_GISU==='58기'&&window.C58){var k=C58.course({name:name,birth:birth,'기수':'58','기관명':INST_W});return k==='sw'?'사회복지사':k==='rn'?'간호사':k==='nu'?'간호조무사':'표준';}
+    var T=tt57(),q=T&&T['자격소지자']||{},nm=String(name||'').trim();for(var k in q)if((q[k]||[]).indexOf(nm)>=0)return k;return '표준';
+  }
+  function ttOf(course){var T=tt57();return T&&T['과정']&&T['과정'][course]||null;}
+  function ttDates(course){var t=ttOf(course);return t?Object.keys(t).sort():[];}
+  function ttGyosi(course,date){var t=ttOf(course);return t&&t[date]||null;}
+  function ttTime(g){var T=tt57(),v=T&&T['교시시각']&&T['교시시각'][g]||'';return /^\d{4}$/.test(v)?v.slice(0,2)+':'+v.slice(2):v;}
+  function isTT57(){return !!tt57();}
+  function syToday(){var p={};new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).forEach(function(x){p[x.type]=x.value;});return p.year+'-'+p.month+'-'+p.day;}
+  function syTypes(it){return SAYU_FLOW.eventsOf(it).map(function(e){return e.type;});}
+  function syPeriodLabel(it){return SAYU_FLOW.label(it);}
+  function syLimit(s){var total=s.gubun==='사회복지사'?{t:32,p:10}:s.gubun==='간호사'?{t:26,p:6}:s.gubun==='간호조무사'?{t:31,p:11}:{t:126,p:114};return '이론은 '+Math.floor(total.t*.2+1e-8)+'시간, 실기는 '+Math.floor(total.p*.2+1e-8)+'시간을 넘기면 수료할 수 없습니다.';}
+
   var TYPES  = ['결석','지각','조퇴','외출','출석체크누락'];
   var TFIELDS = {'결석':[],'지각':['입실','퇴실'],'조퇴':['입실','퇴실'],'외출':['입실','외출','복귀','퇴실'],'출석체크누락':['입실','퇴실']};
   var RETAIN_DAYS = 90;
@@ -15173,8 +15239,8 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
   function $(id){return document.getElementById(id);}
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function db(){return (window._FB&&window._FB.db)?window._FB.db:null;}
-  function isAdmin(){return !!(window.SUPER_USER||window.ADMIN_USER);}
-  function docId(gisu,name,birth){return (String(gisu)+'_'+String(name)+'_'+String(birth)).replace(/[\/\.\#\$\[\]\s]/g,'_');}
+  function isAdmin(){return !!window.SUPER_USER||!!(window.ADMIN_USER&&[INST_W,INST_M].indexOf(ownInst())>=0);}
+  function docId(gisu,name,birth,inst){return (((inst||currentInst())===INST_M?'main41_':'')+String(gisu)+'_'+String(name)+'_'+String(birth)).replace(/[\/\.\#\$\[\]\s]/g,'_');}
   function fmtDate(d){var p=String(d).split('-');if(p.length<3)return d;var w=['일','월','화','수','목','금','토'][new Date(+p[0],+p[1]-1,+p[2]).getDay()];return (+p[1])+'월 '+(+p[2])+'일('+w+')';}
 
   // 사용자가 동일인으로 확인한 57기 정정욱 → 정정옥 기록만 연결한다.
@@ -15227,15 +15293,17 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
   window.sayuOpen = function(){
     var u = window.CURR_USER;
     if(!u || u.isGuest){ if(typeof altOpen==='function')altOpen('로그인 후 이용할 수 있어요.',null); else alert('로그인 후 이용할 수 있어요.'); return; }
+    _stState=null;
     $('sayu').classList.add('open');
     try{ history.pushState({sayu:1},'','#sayu'); }catch(e){}
     $('sayuBody').innerHTML = '<div class="sy-empty"><span class="ic">⏳</span>불러오는 중…</div>';
     try{ if(window.usignLoad) window.usignLoad(function(){ if(_stState) renderStudent(); }); }catch(e){}
     var gisu = u.기수 ? (String(u.기수).indexOf('기')>=0?u.기수:u.기수+'기') : GISU;
-    var id = docId(gisu, u.name, u.birth);
+    var institution=u['기관명']||INST_W;
+    var id=docId(gisu,u.name,u.birth,institution);
     var d = db();
     if(!d){ $('sayuBody').innerHTML='<div class="sy-empty"><span class="ic">⚠️</span>서버 연결이 필요합니다.<br>인터넷 연결을 확인해 주세요.</div>'; return; }
-    function _setSt(rec, useId){ _stState = { id:useId||id, gisu:gisu, name:syDisplayName(gisu,u.name,u.birth), birth:u.birth, gubun:(rec&&rec.구분)|| (rosterGubun(u.name,u.birth)||''), items:(rec&&rec.items)||[], sign:(rec&&rec.sign)||'', tTh:(rec&&rec['이론'])||0, tSg:(rec&&rec['실기'])||0 }; renderStudent(); }
+    function _setSt(rec, useId){if(window.CURR_USER!==u)return; _stState = { id:useId||id, gisu:gisu, name:syDisplayName(gisu,u.name,u.birth), birth:u.birth, institution:institution, gubun:(rec&&rec.구분)||u['과정']||u['구분']|| (rosterGubun(u.name,u.birth)||''), items:(rec&&rec.items)||[], sign:(rec&&rec.sign)||'', tTh:(rec&&rec['이론'])||0, tSg:(rec&&rec['실기'])||0 }; renderStudent(); }
     var _n6=function(b){ return String(b||'').replace(/[^0-9]/g,'').slice(-6); };
     if(syJeongUser(u,gisu)){
       syLoadJeong(u,gisu).then(function(result){
@@ -15244,19 +15312,20 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
       }).catch(function(e){if(window.CURR_USER===u)$('sayuBody').innerHTML='<div class="sy-empty">불러오지 못했습니다.<br>'+esc(e.message||e)+'</div>';});
       return;
     }
-    var SC=colFor(gisu);
+    var SC=colFor(gisu,institution);
     d.collection(SC).doc(id).get().then(function(snap){
       var rec = snap.exists ? snap.data() : null;
-      if(rec && (rec.items||[]).length){ _setSt(rec, id); return; }
+      if(window.CURR_USER!==u)return;
+      if(rec && (rec.items||[]).length){ _setSt(rec,id);return; }
       // 보조 매칭: 같은 기수·이름으로 검색(동명이인은 생년월일로 구분) — 생년월일 형식차 대비
       return d.collection(SC).where('성명','==',u.name).get().then(function(qs){
-        var cands=[]; qs.forEach(function(doc){ var v=doc.data(); v._id=doc.id; if(String(v.기수)===gisu && (v.items||[]).length) cands.push(v); });
+        var cands=[]; qs.forEach(function(doc){ var v=doc.data(); v._id=doc.id; if(String(v.기수)===gisu && (institution!==INST_M||v['기관명']===institution) && (v.items||[]).length) cands.push(v); });
         var pick=null;
         if(cands.length===1) pick=cands[0];
         else if(cands.length>1) pick=cands.find(function(c){ return _n6(c.생년월일)===_n6(u.birth); });
         if(pick){ _setSt(pick, pick._id); } else { _setSt(rec, id); }
       });
-    }).catch(function(e){ $('sayuBody').innerHTML='<div class="sy-empty"><span class="ic">⚠️</span>불러오지 못했습니다.<br>'+esc(e.message||e)+'</div>'; });
+    }).catch(function(e){if(window.CURR_USER===u)$('sayuBody').innerHTML='<div class="sy-empty"><span class="ic">⚠️</span>불러오지 못했습니다.<br>'+esc(e.message||e)+'</div>'; });
   };
 
   // ============ 미작성 사유서 알림 ============
@@ -15306,7 +15375,8 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
     var u=window.CURR_USER; if(!u||u.isGuest){ _syBanner(null); return; }
     var d=db(); if(!d) return;
     var gisu = u.기수 ? (String(u.기수).indexOf('기')>=0?u.기수:u.기수+'기') : GISU;
-    var id = docId(gisu, u.name, u.birth);
+    var institution=u['기관명']||INST_W;
+    var id=docId(gisu,u.name,u.birth,institution);
     var _n6=function(b){ return String(b||'').replace(/[^0-9]/g,'').slice(-6); };
     function fin(rec){
       var go=function(){ var p=_syPendCount(rec); window._sayuPending=p; _syBanner(p); if(!(opt&&opt.silent)) _syModal(p); };
@@ -15318,12 +15388,12 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
       syLoadJeong(u,gisu).then(function(result){if(window.CURR_USER===u)fin(result.rec);}).catch(function(){});
       return;
     }
-    var SC=colFor(gisu);
+    var SC=colFor(gisu,institution);
     d.collection(SC).doc(id).get().then(function(snap){
       var rec = snap.exists ? snap.data() : null;
       if(rec && (rec.items||[]).length){ fin(rec); return; }
       return d.collection(SC).where('성명','==',u.name).get().then(function(qs){
-        var c=[]; qs.forEach(function(doc){ var v=doc.data(); if(String(v.기수)===gisu && (v.items||[]).length) c.push(v); });
+        var c=[]; qs.forEach(function(doc){ var v=doc.data(); if(String(v.기수)===gisu && (institution!==INST_M||v['기관명']===institution) && (v.items||[]).length) c.push(v); });
         var pick = c.length===1 ? c[0] : c.find(function(x){ return _n6(x.생년월일)===_n6(u.birth); });
         fin(pick||rec);
       });
@@ -15344,7 +15414,7 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
         +'<div style="font-size:18px;font-weight:800;color:#9a3412;margin-bottom:6px">📊 결시(빠진) 시간 합계</div>'
         +'<div style="font-size:20px;color:#1f2937">이론 <b style="color:#b45309">'+_th+'시간</b> · 실기 <b style="color:#b45309">'+_sg+'시간</b>'
         +' &nbsp;(합계 <b>'+(_th+_sg)+'시간</b>)</div>'
-        +'<div style="font-size:16px;color:#7c2d12;margin-top:6px">사유서 <b>'+s.items.length+'건</b> · 이론은 25시간, 실기는 22시간을 넘기면 수료할 수 없습니다.</div>'
+        +'<div style="font-size:16px;color:#7c2d12;margin-top:6px">사유서 <b>'+s.items.length+'건</b> · '+esc(syLimit(s))+'</div>'
         +'</div>';
     }
     if(!s.items || !s.items.length){
@@ -15356,7 +15426,8 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
       h += '<div class="sy-item">';
       var _hh = ((it['이론']||0)||(it['실기']||0)) ? '<span class="sy-hours">이론 '+(it['이론']||0)+'h · 실기 '+(it['실기']||0)+'h</span>' : '';
       h += '<div class="sy-item-h"><span class="sy-date">'+esc(fmtDate(it.date))+'</span><span class="sy-badge t'+esc(it.type)+'">'+esc(it.type)+'</span>'+_hh+'</div>';
-      var tf = TFIELDS[it.type]||[];
+      if((it['교시']||[]).length)h+='<div class="sy-note" style="font-weight:800;color:#1f2937">'+esc(syPeriodLabel(it))+'</div>';
+      var tf = it.events?[]:(TFIELDS[it.type]||[]);
       if(it.note&&it.note.length){ tf = tf.filter(function(f){ return it.times && it.times[f]; }); }
       if(tf.length){
         h += '<div class="sy-times">';
@@ -15370,7 +15441,7 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
         var _nt=Array.isArray(it.note)?it.note:[it.note];
         h += '<div class="sy-note" style="color:#b45309;font-weight:700">'+_nt.map(function(x){return esc(x);}).join('<br>')+'</div>';
       }
-      if(it.type==='출석체크누락'){
+      if(it.type==='출석체크누락'&&!it.events){
         h += '<label class="sy-tf" style="margin-bottom:6px;">몇 교시<input type="text" style="width:120px" data-i="'+i+'" placeholder="예: 3교시" value="'+esc(it.gyosi||'')+'" oninput="sayuGyosi(this)"></label>';
       }
       h += '<textarea class="sy-rsn" data-i="'+i+'" placeholder="사유를 입력하세요 (예: 병원 진료, 개인 사정 등)" oninput="sayuRsn(this)">'+esc(it.reason||'')+'</textarea>';
@@ -15425,19 +15496,19 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
     window.usignAsk(function(sg){ if(sg){ _stState.sign=sg; } renderStudent(); });
   };
 
-  window.sayuSubmit = function(){
-    var s=_stState;
-    for(var i=0;i<s.items.length;i++){ if(!s.items[i].reason||!s.items[i].reason.trim()){ alert((i+1)+'번째 ('+fmtDate(s.items[i].date)+') 사유를 입력해 주세요.'); return; } }
-    var sign=s.sign||window.USIGN||'';
-    if(!sign){ alert('먼저 서명을 등록해 주세요.'); if(window.usignAsk){ window.usignAsk(function(sg){ if(sg){ _stState.sign=sg; renderStudent(); } }); } return; }
-    var d=db(); if(!d){alert('서버 연결이 필요합니다.');return;}
-    var rec={ 기수:s.gisu, 성명:s.name, 생년월일:s.birth, 구분:s.gubun||'', items:s.items, sign:sign, ts:Date.now(), ymd:new Date().toISOString().slice(0,10) };
-    d.collection(colFor(s.gisu)).doc(s.id).set(rec,{merge:true}).then(function(){
-      s.sign=sign;
-      alert('저장되었습니다. 언제든 다시 들어와 수정할 수 있어요.');
-      renderStudent();
-      try{ window.sayuNotify && window.sayuNotify({silent:true}); }catch(e){}
-    }).catch(function(e){ alert('저장 실패: '+(e.message||e)); });
+  var _syStudentSaving=false;
+  window.sayuSubmit=function(){
+    var s=_stState;if(!s||_syStudentSaving)return;
+    for(var i=0;i<s.items.length;i++)if(!String(s.items[i].reason||'').trim()){alert(fmtDate(s.items[i].date)+' 사유를 입력해 주세요.');return;}
+    var sign=s.sign||window.USIGN||'';if(!sign){alert('먼저 서명을 등록해 주세요.');if(window.usignAsk)window.usignAsk(function(sg){if(sg){s.sign=sg;renderStudent();}});return;}
+    var d=db();if(!d){alert('서버 연결이 필요합니다.');return;}
+    var user=window.CURR_USER,ref=d.collection(colFor(s.gisu,s.institution)).doc(s.id),submitted=JSON.parse(JSON.stringify(s.items));_syStudentSaving=true;
+    d.runTransaction(function(tx){return tx.get(ref).then(function(snap){
+      if(!snap.exists)throw new Error('배정 내역이 변경되었습니다. 사유서를 다시 열어 주세요.');
+      var rec=snap.data();if(s.institution===INST_M&&rec['기관명']!==INST_M)throw new Error('기관 정보를 확인해 주세요.');
+      var items=SAYU_FLOW.mergeForStudent(rec.items||[],submitted);tx.update(ref,{items:items,sign:sign,ts:Date.now(),ymd:syToday()});return items;
+    });}).then(function(items){if(window.CURR_USER!==user||_stState!==s)return;s.items=items;s.sign=sign;alert('저장되었습니다.');renderStudent();try{window.sayuNotify&&window.sayuNotify({silent:true});}catch(e){}
+    }).catch(function(e){alert('저장 실패: '+(e.message||e));}).finally(function(){_syStudentSaving=false;});
   };
 
   window.sayuBack = function(){
@@ -15453,8 +15524,12 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
 
   window._isSayuAdminOpen = function(){return $('sayuAdmin') && $('sayuAdmin').classList.contains('open');};
 
-  window.sayuOpenAdmin = function(){
+  window.sayuOpenAdmin = function(inst){
     if(!isAdmin()){ alert('관리자만 이용할 수 있습니다.'); return; }
+    var target=window.SUPER_USER?(inst||ADM_INST):ownInst();
+    if([INST_W,INST_M].indexOf(target)<0||!syScopeAllowed(target)||(inst&&inst!==target)){alert('본인 교육원의 사유서만 관리할 수 있습니다.');return;}
+    if(ADM_INST!==target)_adFilt={date:'',name:'',category:'all'};
+    ADM_INST=target;GISU_LIST=ADM_INST===INST_M?['41기']:['58기','57기','56기'];if(GISU_LIST.indexOf(ADM_GISU)<0)ADM_GISU=GISU_LIST[0];
     $('sayuAdmin').classList.add('open');
     try{ history.pushState({sayuad:1},'','#sayuAdmin'); }catch(e){}
     _adAssign={name:'',birth:'',gubun:'',rows:[]};
@@ -15462,15 +15537,17 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
   };
   window.sayuCloseAdmin = function(){
     if(!$('sayuAdmin').classList.contains('open')) return;
-    $('sayuAdmin').classList.remove('open');
+    $('sayuAdmin').classList.remove('open');++_adLoadTicket;
+    $('sayuAdminBody').innerHTML='';
   };
 
-  var _adRosterX = {};   // 기수별 명단 캐시 (56기=ROSTER 고정, 그 외=users 컬렉션에서)
+  var _adRosterX = {};   // 교육원·기수별 명단 캐시
+  function rosterKey(inst,gisu){return JSON.stringify([inst||ADM_INST,gisu||ADM_GISU]);}
   function admRoster(){
-    if(ADM_GISU==='56기') return ROSTER;
+    if(ADM_INST===INST_W&&ADM_GISU==='56기')return ROSTER;
     // 57기는 개강보고 최종 명단을 먼저 쓰고, 앱에 가입한 학생(users)은 없는 사람만 덧붙인다
-    var fix=(ADM_GISU==='57기' && window.__SAYU_ROSTER57) ? window.__SAYU_ROSTER57.slice() : [];
-    var ext=_adRosterX[ADM_GISU]||[];
+    var fix=(ADM_INST===INST_W&&ADM_GISU==='57기' && window.__SAYU_ROSTER57) ? window.__SAYU_ROSTER57.slice() : [];
+    var ext=_adRosterX[rosterKey()]||[];
     if(!fix.length) return ext;
     var seen={}; fix.forEach(function(r){ seen[r.n+'|'+String(r.b).replace(/[^0-9]/g,'').slice(-6)]=1; });
     ext.forEach(function(r){ var k=r.n+'|'+String(r.b).replace(/[^0-9]/g,'').slice(-6); if(!seen[k]){ seen[k]=1; fix.push(r); } });
@@ -15478,20 +15555,23 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
     return fix;
   }
   function loadRosterX(cb){
-    var rosterGisu=ADM_GISU;
-    if(rosterGisu==='56기' || _adRosterX[rosterGisu]){ cb(); return; }
-    var d=db(); if(!d){ cb(); return; }
-    d.collection('users').get().then(function(qs){
-      var g=String(rosterGisu).replace(/[^0-9]/g,''), out=[];
-      qs.forEach(function(doc){ var u=doc.data()||{};
-        if(String(u.기수||'').replace(/[^0-9]/g,'')!==g) return;
-        if(u.role==='admin'||u.role==='super') return;
-        out.push({n:u.name||'', b:String(u.birth||''), g:''});
-      });
-      out.sort(function(a,b){ return String(a.n).localeCompare(String(b.n),'ko'); });
-      _adRosterX[rosterGisu]=out; cb();
-    }).catch(function(){ cb(); });
+    var gisu=ADM_GISU,inst=ADM_INST,key=rosterKey(inst,gisu);
+    if(inst===INST_W&&gisu==='56기'||_adRosterX[key]){cb();return;}
+    var d=db();if(!d){cb();return;}
+    d.collection('users').where('기관명','==',inst).get().then(function(qs){
+      if(inst!==ADM_INST||gisu!==ADM_GISU||!syScopeAllowed(inst))return;
+      var out=[],seen={};qs.forEach(function(doc){var u=doc.data()||{};
+        if(String(u['기관명']||'').trim()!==inst||String(u['기수']||'').replace(/\D/g,'')!==gisu.replace(/\D/g,'')||u.role==='admin'||u.role==='super')return;
+        var key=(u.name||'')+'|'+String(u.birth||'');if(seen[key])return;seen[key]=true;
+        var c=inst===INST_M&&window.C41?C41.course(u):'';out.push({n:u.name||'',b:String(u.birth||''),g:c==='sw'?'사회복지사':c==='std'?'표준':u['과정']||u['구분']||''});
+      });out.sort(function(a,b){return a.n.localeCompare(b.n,'ko');});_adRosterX[key]=out;cb();
+    }).catch(function(){cb();});
   }
+  window.sayuAdmInst=function(inst){
+    if(!window.SUPER_USER||[INST_W,INST_M].indexOf(inst)<0)return;
+    ADM_INST=inst;GISU_LIST=inst===INST_M?['41기']:['58기','57기','56기'];ADM_GISU=GISU_LIST[0];_adRosterX={};_adFilt={date:'',name:'',category:'all'};_adAssign={name:'',birth:'',gubun:'',rows:[]};loadAdmin();
+  };
+
   window.sayuAdmGisu = function(g){
     if(GISU_LIST.indexOf(g)<0) return;
     if(!isAdmin())return;
@@ -15500,29 +15580,28 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
   };
   var _adLoadTicket=0;
   function loadAdmin(){
-    if(!isAdmin())return;
+    if(!isAdmin()||!syScopeAllowed(ADM_INST))return;
+    var loadInst=ADM_INST;
     var loadGisu=ADM_GISU,loadTicket=++_adLoadTicket;_adAll=[];
     $('sayuAdminBody').innerHTML='<div class="sy-empty"><span class="ic">⏳</span>불러오는 중…</div>';
     var d=db(); if(!d){ $('sayuAdminBody').innerHTML='<div class="sy-empty"><span class="ic">⚠️</span>서버 연결이 필요합니다.</div>'; return; }
     loadRosterX(function(){
-    if(loadTicket!==_adLoadTicket||loadGisu!==ADM_GISU)return;
-    d.collection(colFor(loadGisu)).get().then(function(qs){
-      if(loadTicket!==_adLoadTicket||loadGisu!==ADM_GISU)return;
+    if(loadTicket!==_adLoadTicket||loadGisu!==ADM_GISU||loadInst!==ADM_INST||!syScopeAllowed(loadInst)||!$('sayuAdmin').classList.contains('open'))return;
+    d.collection(colFor(loadGisu,loadInst)).get().then(function(qs){
+      if(loadTicket!==_adLoadTicket||loadGisu!==ADM_GISU||loadInst!==ADM_INST||!syScopeAllowed(loadInst)||!$('sayuAdmin').classList.contains('open'))return;
       _adAll=[]; var dels=0;
       qs.forEach(function(doc){
-        var v=doc.data(); v._id=doc.id;
+        var v=doc.data();if(loadInst===INST_M&&(v['기관명']!==INST_M||String(v['기수']||'').replace(/\D/g,'')!=='41'))return;if(loadInst===INST_W&&v['기관명']&&v['기관명']!==INST_W)return; v._id=doc.id;
         var b6=String(v.생년월일||'').replace(/[^0-9]/g,'');
         // ⚠ 사유서=공식 출석기록: 자동삭제 폐지(만료·고아 삭제 안 함, 영구 보관). 생년월일 6자리 아닌 옛 배포분은 관리자 화면에만 숨김(데이터는 보존).
         if(b6.length!==6){ return; }
-        // 같은 날짜 중복 항목 제거 (한 날 = 한 개)
-        var seen={}, dedup=[], changed=false;
-        (v.items||[]).forEach(function(it){ if(seen[it.date]){ changed=true; } else { seen[it.date]=1; dedup.push(it); } });
-        if(changed){ v.items=dedup; d.collection(colFor(loadGisu)).doc(doc.id).update({items:dedup}); }
+        // 조회는 공식 기록을 쓰거나 삭제하지 않는다. 하루 여러 유형은 events 안에 보관한다.
+
         _adAll.push(v);
       });
       renderAdmin();
       if(dels) console.log('사유서 정리: 옛/만료 문서 '+dels+'건 삭제');
-    }).catch(function(e){ if(loadTicket!==_adLoadTicket||loadGisu!==ADM_GISU)return; $('sayuAdminBody').innerHTML='<div class="sy-empty"><span class="ic">⚠️</span>'+esc(e.message||e)+'</div>'; });
+    }).catch(function(e){ if(loadTicket!==_adLoadTicket||loadGisu!==ADM_GISU||loadInst!==ADM_INST||!syScopeAllowed(loadInst)||!$('sayuAdmin').classList.contains('open'))return; $('sayuAdminBody').innerHTML='<div class="sy-empty"><span class="ic">⚠️</span>'+esc(e.message||e)+'</div>'; });
     });
   }
   window.loadAdmin = loadAdmin;
@@ -15567,23 +15646,25 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
   window.sayuFilterCategory=function(v){if(!isAdmin())return;_adFilt.category=(v==='new'||v==='licensed')?v:'all';renderAdmin();};
 
   function renderAdmin(){
+    if(!isAdmin()||!syScopeAllowed(ADM_INST))return;
     var h='';
-    h+='<div class="sy-card" style="padding:10px 12px"><div style="display:flex;gap:8px">';
+    if(window.SUPER_USER)h+='<div class="sy-field">교육원<select onchange="sayuAdmInst(this.value)">'+[INST_W,INST_M].map(function(x){return '<option'+(x===ADM_INST?' selected':'')+'>'+esc(x)+'</option>';}).join('')+'</select></div>';
+    h+='<div class="sy-card" style="padding:10px 12px"><b>'+esc(ADM_INST)+'</b><div style="display:flex;gap:8px;margin-top:8px">';
     GISU_LIST.forEach(function(g){
       var on=(g===ADM_GISU);
       h+='<button class="sy-btn '+(on?'pri':'sec')+'" style="flex:1;font-size:16px" onclick="sayuAdmGisu(\''+g+'\')">'+esc(g)+(on?' ✔':'')+'</button>';
     });
     h+='</div><div class="sy-note" style="margin-top:6px">기수별로 따로 보관됩니다. 이전 기수 기록은 그대로 남아 있어요.</div></div>';
     var gisuHeader=h;h='';
-    h+='<div class="sy-card"><h4>➕ '+esc(ADM_GISU)+' 결석·지각 배정 (해당 학생에게 사유서가 전달됩니다)</h4>';
+    h+='<div class="sy-card"><h4>➕ '+esc(ADM_GISU)+' 부재 교시 선택 · 학생에게 사유서 보내기</h4>';
     h+='<div class="sy-field">명단에서 선택<select id="adRoster" onchange="sayuPickRoster(this.value)"><option value="">— 직접 입력하려면 비워두세요 —</option>';
     admRoster().forEach(function(r,i){ h+='<option value="'+i+'">'+esc(r.n)+' ('+esc(r.b)+')'+(r.g?' '+esc(r.g):'')+'</option>'; });
     h+='</select></div>';
-    h+='<div class="sy-grid2"><div class="sy-field">기수<input id="adGisu" value="'+esc(ADM_GISU)+'"></div><div class="sy-field">구분<input id="adGubun" value="'+esc(_adAssign.gubun)+'" placeholder="신규/면허"></div></div>';
+    h+='<div class="sy-grid2"><div class="sy-field">기수<input id="adGisu" value="'+esc(ADM_GISU)+'"></div><div class="sy-field">구분<input id="adGubun" value="'+esc(_adAssign.gubun)+'" placeholder="표준/사회복지사/간호사/간호조무사"></div></div>';
     h+='<div class="sy-grid2"><div class="sy-field">성명<input id="adName" value="'+esc(_adAssign.name)+'" placeholder="이름"></div><div class="sy-field">생년월일<input id="adBirth" value="'+esc(_adAssign.birth)+'" placeholder="1974-03-18"></div></div>';
-    h+='<div class="sy-field">빠진 날짜 추가</div><div class="sy-datelist" id="adRows">'+rowsHtml()+'</div>';
-    h+='<div class="sy-btnrow"><button class="sy-btn sec" onclick="sayuAddRow()">+ 날짜 추가</button><button class="sy-btn pri" onclick="sayuAssign()">배정 저장</button></div>';
-    h+='<div class="sy-note">※ 같은 학생을 다시 배정하면 날짜가 합쳐집니다(학생이 쓴 사유·서명은 유지). 학생은 로그인한 이름·생년월일로 자동 매칭됩니다.</div>';
+    h+='<div class="sy-field">부재 날짜와 유형별 교시</div><div class="sy-datelist" id="adRows">'+rowsHtml()+'</div>';
+    h+='<div class="sy-btnrow"><button class="sy-btn sec" onclick="sayuAddRow()">+ 날짜 추가</button><button class="sy-btn pri" id="adSend" onclick="sayuAssign()">학생에게 보내기</button></div>';
+    h+='<div class="sy-note">※ 날짜별로 외출·조퇴 등을 함께 선택할 수 있습니다. 교시가 겹쳐도 부재시간은 한 번만 계산합니다. 학생은 앱 사유서에서 사유를 작성하며, 기존 사유·서명은 유지됩니다.</div>';
     var seed57 = (ADM_GISU==='57기' && window.__SAYU_ASSIGN57) ? Object.keys(window.__SAYU_ASSIGN57).length : 0;
     if(seed57){ h+='<div class="sy-btnrow" style="margin-top:6px"><button class="sy-btn" style="background:#0d9488;color:#fff;width:100%" onclick="sayuBulk57()">📥 57기 출석부 결시 일괄 배정 ('+seed57+'명)</button></div>'
       +'<div class="sy-note">출석부('+(function(){var t=(window.__SAYU_DATES57||[]);return t.length?(t[0].slice(5).replace('-','/')+'~'+t[t.length-1].slice(5).replace('-','/')):'';})()+')에서 과정별 시간표로 계산한 결시(이론/실기)를 '+seed57+'명에게 한 번에 배정합니다. 학생이 이미 쓴 사유·서명은 유지되고, 잘못 배포된 내역은 자동 정리됩니다.</div>'; }
@@ -15615,140 +15696,61 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
   }
 
   function rowsHtml(){
-    var use56=(ADM_GISU==='56기' && DATES.length);
-    var crs=isTT57()?courseOf(_adAssign.name):null;
-    var cdates=crs?ttDates(crs):[];
-    if(!_adAssign.rows.length) _adAssign.rows=[{date:(use56?DATES[0]:(cdates[0]||new Date().toISOString().slice(0,10))),type:'결석',gy:[]}];
-    var h='';
-    if(crs){
-      h+='<div class="sy-note" style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:9px 11px;margin-bottom:8px;color:#1e3a8a;font-weight:700">'
-        +'📘 '+esc(_adAssign.name||'(이름 입력 전)')+' 님은 <b>'+esc(crs)+' 과정</b>'
-        +(crs==='표준'?'':' <span style="color:#b45309">· 자격소지자(별도 시간표)</span>')
-        +' — 수업일 '+cdates.length+'일'
-        +'</div>';
-    }
+    var crs=courseOf(_adAssign.name,_adAssign.birth),cdates=ttDates(crs);
+    if(!_adAssign.rows.length)_adAssign.rows=[{date:cdates.find(function(d){return d>=syToday();})||cdates[cdates.length-1]||syToday(),events:[{type:'결석',periods:[]}]}];
+    var h='<div class="sy-note">'+esc(crs)+' 과정 · 시간을 적지 않고 빠진 교시를 고릅니다.</div>';
     _adAssign.rows.forEach(function(r,i){
-      if(!r.gy) r.gy=[];
-      if(crs){
-        h+='<div class="sy-drow" style="flex-wrap:wrap"><select data-i="'+i+'" onchange="sayuRowDate(this)">';
-        if(cdates.indexOf(r.date)<0) h+='<option value="'+esc(r.date)+'" selected>'+esc(fmtDate(r.date))+' (수업없음)</option>';
-        cdates.forEach(function(dt){ h+='<option value="'+dt+'"'+(r.date===dt?' selected':'')+'>'+esc(fmtDate(dt))+'</option>'; });
-        h+='</select>';
-      } else if(use56){
-        h+='<div class="sy-drow"><select data-i="'+i+'" onchange="sayuRowDate(this)">';
-        DATES.forEach(function(dt){ h+='<option value="'+dt+'"'+(r.date===dt?' selected':'')+'>'+esc(fmtDate(dt))+'</option>'; });
-        h+='</select>';
-      } else {
-        h+='<div class="sy-drow"><input type="date" data-i="'+i+'" value="'+esc(r.date)+'" onchange="sayuRowDate(this)" style="padding:8px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px">';
-      }
-      h+='<select data-i="'+i+'" onchange="sayuRowType(this)">';
-      TYPES.forEach(function(t){ h+='<option value="'+t+'"'+(r.type===t?' selected':'')+'>'+t+'</option>'; });
-      h+='</select><button class="rm" onclick="sayuRmRow('+i+')">✕</button>';
-      if(crs){
-        var gm=ttGyosi(crs,r.date);
-        h+='<div style="flex-basis:100%;margin-top:6px">';
-        if(!gm){
-          h+='<div style="font-size:14px;color:#b91c1c;font-weight:700">⚠ 이 날짜는 '+esc(crs)+' 과정 수업일이 아닙니다. (결시 없음)</div>';
-        } else {
-          var gs=Object.keys(gm).sort(function(x,y){return x-y;});
-          h+='<div style="font-size:13.5px;color:#475569;font-weight:700;margin-bottom:5px">빠진 교시를 고르세요 <span style="color:#94a3b8">(이=이론 · 실=실기)</span>'
-            +' <button class="sy-btn sec" style="padding:3px 9px;font-size:12.5px;margin-left:6px" onclick="sayuGyAll('+i+')">전체</button>'
-            +' <button class="sy-btn sec" style="padding:3px 9px;font-size:12.5px" onclick="sayuGyNone('+i+')">해제</button></div>';
-          h+='<div style="display:flex;gap:5px;flex-wrap:wrap">';
-          gs.forEach(function(g){
-            var on=(r.gy.indexOf(+g)>=0), th=(gm[g]==='T');
-            h+='<button onclick="sayuGyTog('+i+','+g+')" style="border:2px solid '+(on?(th?'#1d4ed8':'#0a7a2e'):'#cbd5e1')+';background:'+(on?(th?'#1d4ed8':'#0a7a2e'):'#fff')+';color:'+(on?'#fff':'#475569')+';border-radius:9px;padding:7px 9px;font-size:13.5px;font-weight:800;min-width:56px">'
-              +g+'교시<br><span style="font-size:11.5px;font-weight:700">'+(th?'이론':'실기')+' '+ttTime(g)+'</span></button>';
-          });
-          h+='</div>';
-          var th=0,sg=0; r.gy.forEach(function(g){ if(gm[String(g)]==='T') th++; else if(gm[String(g)]) sg++; });
-          h+='<div style="margin-top:6px;font-size:14.5px;font-weight:800;color:'+((th+sg)?'#b45309':'#94a3b8')+'">→ 결시 이론 '+th+'시간 · 실기 '+sg+'시간</div>';
-        }
-        h+='</div>';
-      }
+      r.events=r.events||[{type:r.type||'결석',periods:r.gy||[]}];var gm=ttGyosi(crs,r.date);
+      h+='<div class="sy-card" style="padding:10px;border:1px solid #cbd5e1"><div class="sy-drow">';
+      if(cdates.length){h+='<select aria-label="부재 날짜" data-i="'+i+'" onchange="sayuRowDate(this)">';if(cdates.indexOf(r.date)<0)h+='<option value="'+esc(r.date)+'">'+esc(fmtDate(r.date))+' (수업 없음)</option>';cdates.forEach(function(d){h+='<option value="'+d+'"'+(d===r.date?' selected':'')+'>'+esc(fmtDate(d))+'</option>';});h+='</select>';}
+      else h+='<input type="date" aria-label="부재 날짜" data-i="'+i+'" value="'+esc(r.date)+'" onchange="sayuRowDate(this)">';
+      h+='<button class="rm" onclick="sayuRmRow('+i+')" aria-label="날짜 삭제">✕</button></div>';
+      if(!gm)h+='<div class="sy-note" style="color:#b91c1c">이 날짜의 과정별 시간표가 없습니다. 수업일·과정을 확인해 주세요.</div>';
+      r.events.forEach(function(e,j){
+        h+='<div style="margin-top:8px;padding:8px;background:#f8fafc;border-radius:8px"><select aria-label="부재 유형" data-i="'+i+'" data-event="'+j+'" onchange="sayuRowType(this)">'+TYPES.map(function(t){return '<option'+(e.type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select>';
+        if(r.events.length>1)h+=' <button class="sy-btn sec" onclick="sayuRmEvent('+i+','+j+')">유형 삭제</button>';
+        h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">';
+        Object.keys(gm||{}).sort(function(a,b){return a-b;}).forEach(function(g){var on=(e.periods||[]).indexOf(+g)>=0;h+='<button type="button" aria-pressed="'+on+'" onclick="sayuGyTog('+i+','+g+','+j+')" style="border:2px solid '+(on?'#1d4ed8':'#cbd5e1')+';background:'+(on?'#1d4ed8':'#fff')+';color:'+(on?'#fff':'#334155')+';border-radius:8px;padding:9px;font-weight:800">'+g+'교시<br><small>'+(gm[g]==='T'?'이론':'실기')+'</small></button>';});
+        h+='</div><div style="margin-top:6px"><button class="sy-btn sec" onclick="sayuGyAll('+i+','+j+')">이 날 전체</button> <button class="sy-btn sec" onclick="sayuGyNone('+i+','+j+')">해제</button></div></div>';
+      });
+      h+='<button class="sy-btn sec" style="margin-top:8px" onclick="sayuAddEvent('+i+')">+ 외출·조퇴 등 유형 추가</button>';
+      try{var total=SAYU_FLOW.summarize(r.events,gm);h+='<div class="sy-note" style="font-weight:800">부재 이론 '+total.theory+'시간 · 실기 '+total.skills+'시간</div>';}catch(e){h+='<div class="sy-note">빠진 교시를 선택해 주세요.</div>';}
       h+='</div>';
-    });
-    return h;
+    });return h;
   }
-  window.sayuGyTog = function(i,g){ syncAssign(); var r=_adAssign.rows[i]; if(!r) return; r.gy=r.gy||[];
-    var k=r.gy.indexOf(g); if(k>=0) r.gy.splice(k,1); else r.gy.push(g);
-    r.gy.sort(function(a,b){return a-b;}); $('adRows').innerHTML=rowsHtml(); };
-  window.sayuGyAll = function(i){ syncAssign(); var r=_adAssign.rows[i]; if(!r) return;
-    var gm=ttGyosi(courseOf(_adAssign.name), r.date)||{};
-    r.gy=Object.keys(gm).map(Number).sort(function(a,b){return a-b;}); $('adRows').innerHTML=rowsHtml(); };
-  window.sayuGyNone = function(i){ syncAssign(); var r=_adAssign.rows[i]; if(r){ r.gy=[]; $('adRows').innerHTML=rowsHtml(); } };
-  window.sayuPickRoster = function(idx){
-    if(idx===''){ return; }
-    var r=admRoster()[+idx]; if(!r)return;
-    _adAssign.name=r.n; _adAssign.birth=r.b;
-    _adAssign.gubun = (isTT57() ? courseOf(r.n) : r.g);
-    $('adName').value=r.n; $('adBirth').value=r.b; $('adGubun').value=_adAssign.gubun;
-    if(isTT57()){                                  // 과정이 바뀌면 날짜·교시 초기화
-      var cd=ttDates(courseOf(r.n));
-      _adAssign.rows=[{date:cd[0]||'',type:'결석',gy:[]}];
-      if($('adRows')) $('adRows').innerHTML=rowsHtml();
-    }
-  };
-  window.sayuAddRow = function(){ syncAssign();
-    var d0;
-    if(isTT57()){ var cd=ttDates(courseOf(_adAssign.name)); var used={}; _adAssign.rows.forEach(function(r){used[r.date]=1;});
-      d0=cd.find(function(x){return !used[x];})||cd[0]||''; }
-    else d0=(ADM_GISU==='56기'&&DATES.length)?DATES[0]:new Date().toISOString().slice(0,10);
-    _adAssign.rows.push({date:d0,type:'결석',gy:[]}); $('adRows').innerHTML=rowsHtml(); };
-  window.sayuRmRow = function(i){ syncAssign(); _adAssign.rows.splice(i,1); $('adRows').innerHTML=rowsHtml(); };
-  window.sayuRowDate = function(el){ var i=+el.getAttribute('data-i');
-    _adAssign.rows[i].date=el.value; _adAssign.rows[i].gy=[];
-    if(isTT57() && $('adRows')) $('adRows').innerHTML=rowsHtml(); };
-  window.sayuRowType = function(el){ _adAssign.rows[+el.getAttribute('data-i')].type=el.value; };
-  function syncAssign(){ _adAssign.name=$('adName')?$('adName').value.trim():_adAssign.name; _adAssign.birth=$('adBirth')?$('adBirth').value.trim():_adAssign.birth; _adAssign.gubun=$('adGubun')?$('adGubun').value.trim():_adAssign.gubun; }
-
-  window.sayuAssign = function(){
-    syncAssign();
-    var gisu=$('adGisu').value.trim()||GISU; if(gisu.indexOf('기')<0)gisu+='기';
-    if(!_adAssign.name||!_adAssign.birth){ alert('성명과 생년월일을 입력해 주세요.'); return; }
-    if(!_adAssign.rows.length){ alert('빠진 날짜를 1개 이상 추가해 주세요.'); return; }
-    if(gisu==='57기' && tt57()){
-      var _c=courseOf(_adAssign.name), bad=[], nogy=[];
-      _adAssign.rows.forEach(function(r){
-        if(!ttGyosi(_c,r.date)) bad.push(fmtDate(r.date));
-        else if(!(r.gy||[]).length) nogy.push(fmtDate(r.date));
-      });
-      if(bad.length){ alert('⚠️ '+_adAssign.name+' 님('+_c+' 과정)은\n'+bad.join(', ')+'에 수업이 없습니다.\n날짜를 다시 확인해 주세요.'); return; }
-      if(nogy.length && !confirm(nogy.join(', ')+'\n빠진 교시를 고르지 않으셨어요.\n결시 시간 0으로 저장할까요?')) return;
-    }
-    var d=db(); if(!d){alert('서버 연결이 필요합니다.');return;}
-    var id=docId(gisu,_adAssign.name,_adAssign.birth);
-    var AC=colFor(gisu);
-    d.collection(AC).doc(id).get().then(function(snap){
-      var ex=snap.exists?snap.data():{};
-      var items=(ex.items||[]).slice();
-      var crs2=(gisu==='57기'&&tt57())?courseOf(_adAssign.name):null;
-      _adAssign.rows.forEach(function(nr){
-        var th=0,sg=0,gy=(nr.gy||[]).slice();
-        if(crs2){
-          var gm=ttGyosi(crs2,nr.date)||{};
-          gy=gy.filter(function(g){ return !!gm[String(g)]; });     // 본인 과정에 없는 교시는 버림
-          gy.forEach(function(g){ if(gm[String(g)]==='T') th++; else sg++; });
-        }
-        var f=items.find(function(x){return x.date===nr.date;});
-        if(f){ f.type=nr.type; if(crs2){ f['이론']=th; f['실기']=sg; f['교시']=gy; } }
-        else {
-          var it={date:nr.date,type:nr.type,times:{},reason:'',gyosi:''};
-          if(crs2){ it['이론']=th; it['실기']=sg; it['교시']=gy; it['과정']=crs2; }
-          items.push(it);
-        }
-      });
-      items.sort(function(a,b){return a.date<b.date?-1:1;});
-      var rec={ 기수:gisu, 성명:_adAssign.name, 생년월일:_adAssign.birth, 구분:_adAssign.gubun||ex.구분||'', items:items, sign:ex.sign||'', ts:Date.now(), ymd:new Date().toISOString().slice(0,10) };
-      return d.collection(AC).doc(id).set(rec,{merge:true});
-    }).then(function(){
-      alert('배정되었습니다. 해당 학생이 로그인하면 사유서에 표시됩니다.');
-      _adAssign={name:'',birth:'',gubun:'',rows:[]};
-      loadAdmin();
-    }).catch(function(e){ alert('배정 실패: '+(e.message||e)); });
+  function refreshRows(){if($('adRows'))$('adRows').innerHTML=rowsHtml();}
+  window.sayuGyTog=function(i,g,j){syncAssign();var e=_adAssign.rows[i].events[j||0],p=e.periods||[];e.periods=p.indexOf(g)>=0?p.filter(function(v){return v!==g;}):SAYU_FLOW.periods(p.concat([g]));refreshRows();};
+  window.sayuGyAll=function(i,j){syncAssign();var r=_adAssign.rows[i],gm=ttGyosi(courseOf(_adAssign.name,_adAssign.birth),r.date)||{};r.events[j||0].periods=Object.keys(gm).map(Number);refreshRows();};
+  window.sayuGyNone=function(i,j){syncAssign();_adAssign.rows[i].events[j||0].periods=[];refreshRows();};
+  window.sayuAddEvent=function(i){syncAssign();_adAssign.rows[i].events.push({type:'외출',periods:[]});refreshRows();};
+  window.sayuRmEvent=function(i,j){syncAssign();_adAssign.rows[i].events.splice(j,1);refreshRows();};
+  window.sayuPickRoster=function(idx){if(idx==='')return;var r=admRoster()[+idx];if(!r)return;_adAssign.name=r.n;_adAssign.birth=r.b;_adAssign.gubun=r.g||courseOf(r.n,r.b);$('adName').value=r.n;$('adBirth').value=r.b;$('adGubun').value=_adAssign.gubun;_adAssign.rows=[];refreshRows();};
+  window.sayuAddRow=function(){syncAssign();var dates=ttDates(courseOf(_adAssign.name,_adAssign.birth));_adAssign.rows.push({date:dates.find(function(d){return d>=syToday()&&!_adAssign.rows.some(function(r){return r.date===d;});})||dates[0]||syToday(),events:[{type:'결석',periods:[]}]});refreshRows();};
+  window.sayuRmRow=function(i){syncAssign();_adAssign.rows.splice(i,1);refreshRows();};
+  window.sayuRowDate=function(el){var r=_adAssign.rows[+el.getAttribute('data-i')];r.date=el.value;r.events.forEach(function(e){e.periods=[];});refreshRows();};
+  window.sayuRowType=function(el){_adAssign.rows[+el.getAttribute('data-i')].events[+el.getAttribute('data-event')||0].type=el.value;};
+  function syncAssign(){_adAssign.name=$('adName')?$('adName').value.trim():_adAssign.name;_adAssign.birth=$('adBirth')?$('adBirth').value.trim():_adAssign.birth;_adAssign.gubun=$('adGubun')?$('adGubun').value.trim():_adAssign.gubun;}
+  var _syAdminSaving=false;
+  window.sayuAssign=function(){
+    if(!isAdmin()||!syScopeAllowed(ADM_INST)||_syAdminSaving)return;syncAssign();
+    var inst=ADM_INST,gisu=ADM_GISU,name=_adAssign.name,birth=_adAssign.birth,course=courseOf(name,birth);
+    if(!name||!birth){alert('명단에서 학생을 선택해 주세요.');return;}
+    var grouped={};try{_adAssign.rows.forEach(function(r){if(!grouped[r.date])grouped[r.date]=[];grouped[r.date]=grouped[r.date].concat(r.events);});
+      Object.keys(grouped).forEach(function(date){grouped[date]={events:grouped[date],map:ttGyosi(course,date)};SAYU_FLOW.assignment(null,grouped[date].events,grouped[date].map,course);});
+    }catch(e){alert(e.message||e);return;}
+    if(!Object.keys(grouped).length){alert('부재 날짜와 교시를 선택해 주세요.');return;}
+    var d=db();if(!d){alert('서버 연결이 필요합니다.');return;}
+    var ref=d.collection(colFor(gisu,inst)).doc(docId(gisu,name,birth,inst));_syAdminSaving=true;if($('adSend'))$('adSend').disabled=true;
+    d.runTransaction(function(tx){return tx.get(ref).then(function(snap){
+      var ex=snap.exists?snap.data():{};if(inst===INST_M&&ex['기관명']&&ex['기관명']!==inst)throw new Error('기관 정보를 확인해 주세요.');
+      var items=(ex.items||[]).slice();Object.keys(grouped).forEach(function(date){var index=items.findIndex(function(it){return it.date===date;}),old=index>=0?items[index]:null,v=grouped[date],item=SAYU_FLOW.assignment(old,v.events,v.map,course);item.date=date;if(index>=0)items[index]=item;else items.push(item);});
+      items.sort(function(a,b){return a.date.localeCompare(b.date);});var rec={'기관명':inst,'기수':gisu,'성명':name,'생년월일':birth,'구분':course,items:items,ts:Date.now(),ymd:syToday(),'이론':items.reduce(function(n,it){return n+(+it['이론']||0);},0),'실기':items.reduce(function(n,it){return n+(+it['실기']||0);},0)};
+      tx.set(ref,rec,{merge:true});
+    });}).then(function(){alert('학생에게 보냈습니다. 학생은 앱 사유서에서 사유를 작성하면 됩니다.');if(ADM_INST===inst&&ADM_GISU===gisu){_adAssign={name:'',birth:'',gubun:'',rows:[]};loadAdmin();}}).catch(function(e){alert('전송 실패: '+(e.message||e));}).finally(function(){_syAdminSaving=false;if($('adSend'))$('adSend').disabled=false;});
   };
 
   window.sayuBulk56 = function(){
+    if(!isAdmin()||ADM_INST!==INST_W||!syScopeAllowed(INST_W))return;
     var seed = window.__SAYU_ASSIGN56;
     if(!seed || !Object.keys(seed).length){ alert('배정 데이터가 없습니다.'); return; }
     if(!confirm('56기 출석부 결시 내역을 일괄 배정합니다.\n(학생이 이미 쓴 사유·서명은 유지되고, 잘못 배포된 내역은 자동으로 정리됩니다.)\n계속할까요?')) return;
@@ -15793,6 +15795,7 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
 
   // ── 57기 출석부 결시 일괄 배정 (56기와 같은 방식, 컬렉션만 sayu57) ──
   window.sayuBulk57 = function(){
+    if(!isAdmin()||ADM_INST!==INST_W||!syScopeAllowed(INST_W))return;
     var seed = window.__SAYU_ASSIGN57;
     if(!seed || !Object.keys(seed).length){ alert('배정 데이터가 없습니다.'); return; }
     if(!confirm('57기 출석부 결시 내역을 일괄 배정합니다.\n(학생이 이미 쓴 사유·서명은 유지되고, 잘못 배포된 내역은 자동으로 정리됩니다.)\n계속할까요?')) return;
@@ -15859,7 +15862,7 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
     var out=[];
     _adAll.forEach(function(p){
       (p.items||[]).forEach(function(it){
-        out.push({_id:p._id,gisu:p['기수'],name:syDisplayName(p['기수'],p['성명'],p['생년월일']),originalName:p['성명'],_hoursMissing:syNumber(it['이론'])===null||syNumber(it['실기'])===null,birth:p['생년월일'],gubun:p['구분'],date:it.date,type:it.type,times:it.times||{},gyosi:it.gyosi||'','이론':it['이론']||0,'실기':it['실기']||0,note:it.note||null,reason:it.reason||'',sign:p.sign||''});
+        out.push({_id:p._id,gisu:p['기수'],name:syDisplayName(p['기수'],p['성명'],p['생년월일']),originalName:p['성명'],_hoursMissing:syNumber(it['이론'])===null||syNumber(it['실기'])===null,birth:p['생년월일'],gubun:p['구분'],date:it.date,type:it.type,events:it.events,types:it.types,'교시':it['교시']||[],times:it.times||{},gyosi:it.gyosi||'','이론':it['이론']||0,'실기':it['실기']||0,note:it.note||null,reason:it.reason||'',sign:p.sign||''});
       });
     });
     if(_adFilt.date) out=out.filter(function(r){return r.date===_adFilt.date;});
@@ -15870,10 +15873,10 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
   }
 
   function timesText(it){
-    var tf=TFIELDS[it.type]||[]; if(it.note&&it.note.length){ tf=tf.filter(function(f){ return it.times && it.times[f]; }); } var parts=[];
-    tf.forEach(function(f){ if(it.times&&it.times[f]) parts.push(f+' '+it.times[f]); });
-    if(it.type==='출석체크누락'&&it.gyosi) parts.push(it.gyosi);
-    return parts.join(' / ');
+    var parts=[],fields=[];if(it.events||(it['교시']||[]).length)parts.push(syPeriodLabel(it));
+    syTypes(it).forEach(function(t){(TFIELDS[t]||[]).forEach(function(f){if(fields.indexOf(f)<0)fields.push(f);});});
+    fields.forEach(function(f){if(it.times&&it.times[f])parts.push(f+' '+it.times[f]);});
+    if(!parts.length&&it.gyosi)parts.push(it.gyosi);return parts.join(' / ');
   }
 
   window.sayuChkAll = function(cb){ document.querySelectorAll('.sy-selchk').forEach(function(x){ x.checked=cb.checked; }); };
@@ -15910,13 +15913,13 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
   function formHtml(r){
     var tt=timesText(r);
     var h='<div class="sy">';
-    h+='<div class="h">사 유 서</div>';
+    h+='<div class="h">사 유 서</div><div style="text-align:center;font-size:10px">'+esc(ADM_INST)+'</div>';
     h+='<table>';
     h+='<tr><td class="k">기수</td><td>'+esc(r.gisu||'')+'</td><td class="k">구분</td><td>'+esc(r.gubun||'')+'</td></tr>';
     h+='<tr><td class="k">성명</td><td>'+esc(r.name||'')+'</td><td class="k">생년월일</td><td>'+esc(r.birth||'')+'</td></tr>';
     h+='<tr><td class="k">일자</td><td>'+esc(fmtDate(r.date))+'</td><td class="k">유형</td><td>'+esc(r.type)+'</td></tr>';
     if((r['이론']||0)||(r['실기']||0)) h+='<tr><td class="k">결시</td><td colspan="3">이론 '+(r['이론']||0)+'시간 · 실기 '+(r['실기']||0)+'시간</td></tr>';
-    if(tt) h+='<tr><td class="k">시간</td><td colspan="3">'+esc(tt)+'</td></tr>';
+    if(tt) h+='<tr><td class="k">교시·기록</td><td colspan="3">'+esc(tt)+'</td></tr>';
     if(r.note&&r.note.length){ var _rnt=Array.isArray(r.note)?r.note:[r.note]; h+='<tr><td class="k">미출석</td><td colspan="3">'+_rnt.map(function(x){return esc(x);}).join('<br>')+'</td></tr>'; }
     h+='</table>';
     h+='<div class="rsn"><div class="lb">사유</div>'+esc(r.reason||'')+'</div>';
@@ -17823,6 +17826,7 @@ body.dark-mode .sy-canv,body.dark-mode #ctSigCanvas{background:#ffffff!important
   function u(){ return window.CURR_USER||{}; }
   window.usignId=function(){
     var x=u(); var g=String(x.기수||'').replace(/[^0-9]/g,'');
+    if(x['기관명']==='고려요양보호사교육원'&&g==='41')return ('main41_41기_'+(x.name||'')+'_'+String(x.birth||'').replace(/[^0-9]/g,'').slice(-6)).replace(/[\/\.\#\$\[\]\s]/g,'_');
     return ((g?g+'기':'')+'_'+(x.name||'')+'_'+String(x.birth||'').replace(/[^0-9]/g,'').slice(-6)).replace(/[\/\.\#\$\[\]\s]/g,'_');
   };
   var _signOwner='';
@@ -17833,7 +17837,7 @@ body.dark-mode .sy-canv,body.dark-mode #ctSigCanvas{background:#ffffff!important
     if(!sg) return;
     syncOwner(); var x=u(); if(!x.name||x.isGuest)return;
     window.USIGN=sg; try{localStorage.setItem(lsKey(),sg);}catch(e){}
-    var d=db(); if(d) d.collection(COL).doc(usignId()).set({sign:sg,'성명':x.name,'생년월일':String(x.birth||'').replace(/[^0-9]/g,'').slice(-6),'기수':String(x.기수||''),ts:Date.now()},{merge:true}).catch(function(){});
+    var d=db(); if(d) d.collection(COL).doc(usignId()).set({sign:sg,'성명':x.name,'생년월일':String(x.birth||'').replace(/[^0-9]/g,'').slice(-6),'기수':String(x.기수||''),'기관명':x['기관명']||'',ts:Date.now()},{merge:true}).catch(function(){});
   };
   // cb(서명, 확인성공여부) — 확인성공여부=false 면 "서명이 없다"가 아니라 "확인 못 했다"(오프라인 등)
   window.usignLoad=function(cb){
@@ -17847,7 +17851,7 @@ body.dark-mode .sy-canv,body.dark-mode #ctSigCanvas{background:#ffffff!important
     function adopt(sg){
       if(!sg || owner()!==requestOwner) return;
       window.USIGN=sg; try{ localStorage.setItem(lsKey(),sg); }catch(e){}
-      try{ d.collection(COL).doc(usignId()).set({sign:sg,'성명':x.name||'','생년월일':b6,'기수':String(x['기수']||''),ts:Date.now()},{merge:true}).catch(function(){}); }catch(e){}
+      try{ d.collection(COL).doc(usignId()).set({sign:sg,'성명':x.name||'','생년월일':b6,'기수':String(x['기수']||''),'기관명':x['기관명']||'',ts:Date.now()},{merge:true}).catch(function(){}); }catch(e){}
     }
     // 이름으로 훑어 생년월일 6자리가 같은 서명을 찾음 (문서ID 표기가 달라도 매칭)
     function byName(col,next){
@@ -17855,6 +17859,8 @@ body.dark-mode .sy-canv,body.dark-mode #ctSigCanvas{background:#ffffff!important
         var pick='';
         qs.forEach(function(doc){ var v=doc.data()||{};
           var vb=String(v['생년월일']||'').replace(/[^0-9]/g,'').slice(-6);
+          var main=x['기관명']==='고려요양보호사교육원'&&String(x['기수']||'').replace(/\D/g,'')==='41';
+          if(main&&(v['기관명']!==x['기관명']||String(v['기수']||'').replace(/\D/g,'')!=='41'||vb!==b6))return;
           if(v.sign && (!b6 || !vb || vb===b6)) pick=v.sign; });
         next(pick);
       }).catch(function(){ failed=true; next(''); });
@@ -17866,9 +17872,10 @@ body.dark-mode .sy-canv,body.dark-mode #ctSigCanvas{background:#ffffff!important
       if(consentSign){adopt(consentSign);cb&&cb(consentSign,true);return;}
       byName(COL,function(a){
         if(a){ adopt(a); cb&&cb(a,true); return; }
-        byName('ori57',function(b){
+        var main=x['기관명']==='고려요양보호사교육원'&&String(x['기수']||'').replace(/\D/g,'')==='41';
+        byName(main?'ori_main41':'ori57',function(b){
           if(b){ adopt(b); cb&&cb(b,true); return; }
-          byName('sayu56',function(c2){
+          byName(main?'sayu_main41':'sayu56',function(c2){
             if(c2){ adopt(c2); cb&&cb(c2,true); return; }
             cb&&cb('', !failed);
           });
@@ -17926,7 +17933,7 @@ body.dark-mode .sy-canv,body.dark-mode #ctSigCanvas{background:#ffffff!important
     syncOwner();
     var x=u(), d=db();
     window.USIGN=sg; try{ localStorage.setItem(lsKey(),sg); }catch(e){}
-    if(d){ d.collection(COL).doc(usignId()).set({sign:sg,성명:x.name||'',생년월일:String(x.birth||'').replace(/[^0-9]/g,'').slice(-6),기수:String(x.기수||''),ts:Date.now()},{merge:true}).catch(function(){}); }
+    if(d){ d.collection(COL).doc(usignId()).set({sign:sg,성명:x.name||'',생년월일:String(x.birth||'').replace(/[^0-9]/g,'').slice(-6),기수:String(x.기수||''),'기관명':x['기관명']||'',ts:Date.now()},{merge:true}).catch(function(){}); }
     document.getElementById('usignOv').classList.add('hidden');
     var c=_cb; _cb=null; c&&c(sg);
   };
@@ -19797,6 +19804,671 @@ updHomeCard();
 
 </script>
 <!-- ===== /암기노트 ===== -->
+
+<script>window.__TT41={"과정":{"표준":{"2026-10-12":{"1":"T","2":"T","3":"T","4":"T","5":"P","6":"P","7":"P","8":"P"},"2026-10-13":{"1":"T","2":"T","3":"T","4":"T","5":"T","6":"T","7":"T","8":"T"},"2026-10-14":{"1":"P","2":"P","3":"T","4":"T","5":"T","6":"T","7":"T","8":"T"},"2026-10-15":{"1":"T","2":"T","3":"P","4":"P","5":"P","6":"T","7":"T","8":"T"},"2026-10-16":{"1":"T","2":"T","3":"T","4":"T","5":"T","6":"P","7":"P","8":"P"},"2026-10-19":{"1":"T","2":"T","3":"P","4":"P","5":"P","6":"P","7":"P","8":"P"},"2026-10-20":{"1":"T","2":"T","3":"T","4":"T","5":"T","6":"T","7":"T","8":"T"},"2026-10-21":{"1":"T","2":"T","3":"T","4":"T","5":"P","6":"P","7":"P","8":"P"},"2026-10-22":{"1":"T","2":"T","3":"P","4":"P","5":"P","6":"P","7":"P","8":"P"},"2026-10-23":{"1":"T","2":"T","3":"T","4":"T","5":"P","6":"P","7":"P","8":"T"},"2026-10-24":{"1":"P","2":"P","3":"P","4":"P","5":"T","6":"T","7":"P","8":"P"},"2026-10-26":{"1":"T","2":"T","3":"P","4":"P","5":"T","6":"P","7":"P","8":"P"},"2026-10-27":{"1":"T","2":"T","3":"T","4":"T","5":"T","6":"T","7":"T","8":"T"},"2026-10-28":{"1":"P","2":"P","3":"P","4":"T","5":"T","6":"T","7":"P","8":"P"},"2026-10-29":{"1":"T","2":"T","3":"P","4":"P","5":"P","6":"P","7":"P","8":"T"},"2026-10-30":{"1":"T","2":"T","3":"T","4":"T","5":"P","6":"P","7":"P","8":"T"},"2026-11-02":{"1":"T","2":"T","3":"T","4":"T","5":"P","6":"P","7":"P","8":"P"},"2026-11-03":{"1":"T","2":"T","3":"P","4":"P","5":"P","6":"P","7":"T","8":"P"},"2026-11-04":{"1":"P","2":"P","3":"T","4":"P","5":"T","6":"T","7":"P","8":"P"},"2026-11-05":{"1":"T","2":"T","3":"P","4":"P","5":"P","6":"P","7":"P","8":"P"},"2026-11-06":{"1":"T","2":"T","3":"T","4":"T","5":"P","6":"P","7":"P","8":"P"},"2026-11-07":{"1":"T","2":"T","3":"T","4":"T","5":"T","6":"P","7":"P","8":"P"},"2026-11-09":{"1":"T","2":"T","3":"T","4":"T","5":"P","6":"P","7":"P","8":"P"},"2026-11-10":{"1":"T","2":"T","3":"T","4":"P","5":"P","6":"P","7":"T","8":"T"},"2026-11-11":{"1":"T","2":"T","3":"P","4":"P","5":"P","6":"P","7":"T","8":"P"},"2026-11-12":{"1":"T","2":"T","3":"T","4":"P","5":"P","6":"P","7":"P","8":"P"},"2026-11-13":{"1":"T","2":"T","3":"T","4":"T","5":"P","6":"P","7":"P","8":"P"},"2026-11-14":{"1":"T","2":"T","3":"T","4":"T","5":"P","6":"P","7":"P","8":"T"},"2026-11-16":{"1":"P","2":"P","3":"P","4":"T","5":"T","6":"T","7":"T","8":"P"},"2026-11-17":{"1":"T","2":"T","3":"T","4":"T","5":"P","6":"P","7":"P","8":"P"}},"사회복지사":{"2026-10-12":{"1":"T","2":"T","3":"T","4":"T","5":"P","6":"P","7":"P"},"2026-10-13":{"1":"T","2":"T","3":"T","4":"T"},"2026-10-14":{"5":"T","6":"T","7":"T","8":"T"},"2026-10-16":{"1":"T","2":"T","3":"T","4":"T","5":"T","6":"P","7":"P","8":"P"},"2026-10-20":{"1":"T","2":"T","3":"T","4":"T","5":"T"},"2026-10-23":{"1":"T","2":"T","3":"T","4":"T"},"2026-10-30":{"2":"T","3":"T","4":"T","5":"P","6":"P","7":"P"},"2026-11-03":{"7":"T","8":"P"},"2026-11-09":{"1":"T","2":"T"}}},"교시시각":{"1":"0900","2":"1000","3":"1100","4":"1200","5":"1340","6":"1440","7":"1540","8":"1640"},"교시종료":{"1":"0950","2":"1050","3":"1150","4":"1250","5":"1430","6":"1530","7":"1630","8":"1730"},"교육시간":{"표준":{"이론":126,"실기":114,"실습":80},"사회복지사":{"이론":32,"실기":10,"실습":8}},"기간":{"표준":{"시작":"2026-10-12","교실종료":"2026-11-17","종료":"2026-12-01"},"사회복지사":{"시작":"2026-10-12","교실종료":"2026-11-09","종료":"2026-11-10"}}};</script>
+<!-- 고려요양보호사교육원 본원 41기: 기관·과정 구분과 시간표. 학생 개인정보를 포함하지 않는다. -->
+<style>
+#tt41{position:fixed;inset:0;background:#f3f7f7;z-index:9050;overflow-y:auto;-webkit-overflow-scrolling:touch;color:#16312f;color-scheme:light}
+#tt41.hidden{display:none}
+#tt41 .c41-top{position:sticky;top:0;display:flex;align-items:center;gap:12px;padding:13px;background:#0f766e;color:#fff;z-index:2}
+#tt41 .c41-top button{border:0;border-radius:10px;background:#ffffff24;color:#fff;padding:10px 13px;font-size:16px;font-weight:800}
+#tt41 .c41-title{flex:1;font-size:20px;font-weight:800}
+#tt41 .c41-wrap{max-width:840px;padding:16px 13px 60px;margin:auto}
+#tt41 .c41-tabs{display:flex;gap:9px;margin-bottom:12px}
+#tt41 .c41-tabs button{flex:1;border:2px solid #a9c6c1;border-radius:11px;background:#fff;padding:13px;font-size:18px;color:#20514b;font-weight:800}
+#tt41 .c41-tabs button.on{background:#0f766e;border-color:#0f766e;color:#fff}
+#tt41 .c41-sum{background:#fff;border-radius:14px;padding:17px;font-size:18px;line-height:1.75;box-shadow:0 2px 9px #143f3910;margin-bottom:15px}
+#tt41 .c41-sum b{color:#0f766e}
+#tt41 .c41-picker{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:10px 0}
+#tt41 .c41-picker button{border:1px solid #b6cbc6;border-radius:10px;background:#fff;padding:12px;font-size:16px;color:#174c43;font-weight:800}
+#tt41 .c41-picker button:disabled{opacity:.4}
+#tt41 .c41-picker input{min-width:0;max-width:175px;padding:10px;border:1px solid #b6cbc6;border-radius:10px;font:inherit;background:#fff;color:#143c35}
+#tt41 .c41-chips{display:flex;gap:7px;overflow-x:auto;padding:7px 0 12px}
+#tt41 .c41-chip{flex:0 0 auto;border:1px solid #b6cbc6;border-radius:11px;background:#fff;color:#174c43;font-size:16px;font-weight:800;padding:10px 13px;line-height:1.4}
+#tt41 .c41-chip small{display:block;font-size:13px}
+#tt41 .c41-chip.on{color:#fff;background:#0f766e;border-color:#0f766e}
+#tt41 .c41-chip.today{outline:2px solid #ed9c36;outline-offset:1px}
+#tt41 .c41-daytitle{font-size:21px;font-weight:800;margin:9px 0 13px}
+#tt41 .c41-period{display:flex;gap:12px;background:#fff;padding:14px;border-radius:13px;margin-bottom:10px;box-shadow:0 2px 9px #143f3910}
+#tt41 .c41-no{flex:0 0 85px;border-radius:10px;background:#eef5f3;font-size:17px;font-weight:800;padding:10px 5px;line-height:1.65;text-align:center}
+#tt41 .c41-no small{font-size:13px;display:block;color:#41675f;font-weight:600}
+#tt41 .c41-subject{font-size:19px;font-weight:800;line-height:1.5}
+#tt41 .c41-content{font-size:17px;line-height:1.7;margin:5px 0;color:#34534e}
+#tt41 .c41-badge{display:inline-block;border-radius:99px;padding:3px 9px;background:#e0f2fe;color:#075985;font-size:15px;font-weight:800}
+#tt41 .c41-badge.practice{background:#fef3c7;color:#92400e}
+#tt41 .c41-teacher{font-size:15px;margin-left:8px;color:#45635d}
+#tt41 .c41-empty{background:#fff;border-radius:12px;text-align:center;padding:24px;font-size:18px;color:#45635d;line-height:1.7}
+@media(max-width:430px){#tt41 .c41-title{font-size:18px}#tt41 .c41-picker button{padding:11px 8px}#tt41 .c41-no{flex-basis:73px}#tt41 .c41-period{gap:10px;padding:12px}}
+</style>
+<div id="tt41" class="hidden" role="dialog" aria-modal="true" aria-label="41기 시간표">
+  <div class="c41-top"><button onclick="tt41Close()">◀ 목록</button><div class="c41-title" id="tt41Title">41기 시간표</div></div>
+  <div class="c41-wrap"><div id="tt41Tabs" class="c41-tabs"></div><div id="tt41Sum" class="c41-sum"></div><div class="c41-picker"><button id="tt41Prev" onclick="tt41Move(-1)">◀ 이전 수업일</button><input id="tt41Date" type="date" aria-label="수업 날짜" onchange="tt41Date(this.value)"><button id="tt41Next" onclick="tt41Move(1)">다음 수업일 ▶</button></div><div id="tt41Chips" class="c41-chips"></div><div id="tt41Day"></div></div>
+</div>
+<script>
+window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w":"월","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-10-13","w":"화","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 인권","c":"노인복지와 장기요양제도","curriculum":"노인복지와 장기요양제도","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 인권","c":"노인복지와 장기요양제도","curriculum":"노인복지와 장기요양제도","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 인권","c":"노인복지와 장기요양제도","curriculum":"노인복지와 장기요양제도","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 인권","c":"노인복지와 장기요양제도","curriculum":"노인복지와 장기요양제도","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 인권","c":"노인복지와 장기요양제도","curriculum":"노인복지와 장기요양제도","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 인권","c":"노인복지와 장기요양제도","curriculum":"노인복지와 장기요양제도","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 인권","c":"노인복지와 장기요양제도","curriculum":"노인복지와 장기요양제도","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1}]},{"date":"2026-10-14","w":"수","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 인권","c":"요양보호 대상자 이해","curriculum":"요양보호 대상자 이해","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 인권","c":"요양보호 대상자 이해","curriculum":"요양보호 대상자 이해","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 인권","c":"요양보호 대상자 이해","curriculum":"요양보호 대상자 이해","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 인권","c":"요양보호 대상자 이해","curriculum":"요양보호 대상자 이해","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1}]},{"date":"2026-10-15","w":"목","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1}]},{"date":"2026-10-16","w":"금","p":[{"n":1,"t":"09:00","end":"09:50","s":"노화와 건강증진","c":"노화에 따른 변화와 질환","curriculum":"노화에 따른 변화와 질환","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"노화와 건강증진","c":"노화에 따른 변화와 질환","curriculum":"노화에 따른 변화와 질환","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1}]},{"date":"2026-10-19","w":"월","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1}]},{"date":"2026-10-20","w":"화","p":[{"n":1,"t":"09:00","end":"09:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1}]},{"date":"2026-10-21","w":"수","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1}]},{"date":"2026-10-22","w":"목","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-10-23","w":"금","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 인권","c":"요양보호사 인권보호와 자기계발","curriculum":"요양보호사 인권보호와 자기계발","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1}]},{"date":"2026-10-24","w":"토","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"신체활동지원-배설 요양보호","curriculum":"신체활동지원-배설 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-10-26","w":"월","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-10-27","w":"화","p":[{"n":1,"t":"09:00","end":"09:50","s":"노화와 건강증진","c":"치매,뇌졸중,파킨슨 질환","curriculum":"치매,뇌졸중,파킨슨 질환","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"노화와 건강증진","c":"치매,뇌졸중,파킨슨 질환","curriculum":"치매,뇌졸중,파킨슨 질환","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1}]},{"date":"2026-10-28","w":"수","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"신체활동지원-개인위생과  환경 요양보호","curriculum":"신체활동지원-개인위생과  환경 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-10-29","w":"목","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"신체활동지원-체위변경과 이동 요양보호","curriculum":"신체활동지원-체위변경과 이동 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"신체활동지원-안전과 감염관련 요양보호","curriculum":"신체활동지원-안전과 감염관련 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1}]},{"date":"2026-10-30","w":"금","p":[{"n":1,"t":"09:00","end":"09:50","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1}]},{"date":"2026-11-02","w":"월","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"의사소통과 정서지원","curriculum":"의사소통과 정서지원","mode":"P","teacher":"김주동","g":"실기(김주동)","hours":1}]},{"date":"2026-11-03","w":"화","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"신체활동지원-안전과 감염관련 요양보호","curriculum":"신체활동지원-안전과 감염관련 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"신체활동지원-안전과 감염관련 요양보호","curriculum":"신체활동지원-안전과 감염관련 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"신체활동지원-안전과 감염관련 요양보호","curriculum":"신체활동지원-안전과 감염관련 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"신체활동지원-안전과 감염관련 요양보호","curriculum":"신체활동지원-안전과 감염관련 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"신체활동지원-안전과 감염관련 요양보호","curriculum":"신체활동지원-안전과 감염관련 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"신체활동지원-안전과 감염관련 요양보호","curriculum":"신체활동지원-안전과 감염관련 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-11-04","w":"수","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"신체활동지원-안전과 감염관련 요양보호","curriculum":"신체활동지원-안전과 감염관련 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"신체활동지원-안전과 감염관련 요양보호","curriculum":"신체활동지원-안전과 감염관련 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"신체활동지원-복지용구 사용","curriculum":"신체활동지원-복지용구 사용","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"신체활동지원-복지용구 사용","curriculum":"신체활동지원-복지용구 사용","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-11-05","w":"목","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"가사 및 일상생활 지원","curriculum":"가사 및 일상생활 지원","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-11-06","w":"금","p":[{"n":1,"t":"09:00","end":"09:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 문제행동대처","curriculum":"치매요양보호기술-치매 대상자의 문제행동대처","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 문제행동대처","curriculum":"치매요양보호기술-치매 대상자의 문제행동대처","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 문제행동대처","curriculum":"치매요양보호기술-치매 대상자의 문제행동대처","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 문제행동대처","curriculum":"치매요양보호기술-치매 대상자의 문제행동대처","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 문제행동대처","curriculum":"치매요양보호기술-치매 대상자의 문제행동대처","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 문제행동대처","curriculum":"치매요양보호기술-치매 대상자의 문제행동대처","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 문제행동대처","curriculum":"치매요양보호기술-치매 대상자의 문제행동대처","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 문제행동대처","curriculum":"치매요양보호기술-치매 대상자의 문제행동대처","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1}]},{"date":"2026-11-07","w":"토","p":[{"n":1,"t":"09:00","end":"09:50","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 일상생활지원","curriculum":"치매요양보호기술-치매 대상자의 일상생활지원","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 일상생활지원","curriculum":"치매요양보호기술-치매 대상자의 일상생활지원","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 일상생활지원","curriculum":"치매요양보호기술-치매 대상자의 일상생활지원","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 일상생활지원","curriculum":"치매요양보호기술-치매 대상자의 일상생활지원","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 일상생활지원","curriculum":"치매요양보호기술-치매 대상자의 일상생활지원","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자의 일상생활지원","curriculum":"치매요양보호기술-치매 대상자의 일상생활지원","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1}]},{"date":"2026-11-09","w":"월","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1}]},{"date":"2026-11-10","w":"화","p":[{"n":1,"t":"09:00","end":"09:50","s":"상황별 요양보호 기술","c":"임종 요양보호","curriculum":"임종 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"상황별 요양보호 기술","c":"임종 요양보호","curriculum":"임종 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"상황별 요양보호 기술","c":"임종 요양보호","curriculum":"임종 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"상황별 요양보호 기술","c":"임종 요양보호","curriculum":"임종 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"상황별 요양보호 기술","c":"임종 요양보호","curriculum":"임종 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"상황별 요양보호 기술","c":"임종 요양보호","curriculum":"임종 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1}]},{"date":"2026-11-11","w":"수","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"P","teacher":"심귀택","g":"실기(심귀택)","hours":1}]},{"date":"2026-11-12","w":"목","p":[{"n":1,"t":"09:00","end":"09:50","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"신체활동지원-안전과 감염관련 요양보호","curriculum":"신체활동지원-안전과 감염관련 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 생활지원","c":"신체활동지원-안전과 감염관련 요양보호","curriculum":"신체활동지원-안전과 감염관련 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-11-13","w":"금","p":[{"n":1,"t":"09:00","end":"09:50","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-11-14","w":"토","p":[{"n":1,"t":"09:00","end":"09:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자와의 의사소통","curriculum":"치매요양보호기술-치매 대상자와의 의사소통","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자와의 의사소통","curriculum":"치매요양보호기술-치매 대상자와의 의사소통","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자와의 의사소통","curriculum":"치매요양보호기술-치매 대상자와의 의사소통","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자와의 의사소통","curriculum":"치매요양보호기술-치매 대상자와의 의사소통","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자와의 의사소통","curriculum":"치매요양보호기술-치매 대상자와의 의사소통","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자와의 의사소통","curriculum":"치매요양보호기술-치매 대상자와의 의사소통","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-치매 대상자와의 의사소통","curriculum":"치매요양보호기술-치매 대상자와의 의사소통","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-인지활동 지원 및 관리","curriculum":"치매요양보호기술-인지활동 지원 및 관리","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1}]},{"date":"2026-11-16","w":"월","p":[{"n":1,"t":"09:00","end":"09:50","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"상황별 사례(재가,시설,응급)","curriculum":"상황별 사례(재가,시설,응급)","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-11-17","w":"화","p":[{"n":1,"t":"09:00","end":"09:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-인지활동 지원 및 관리","curriculum":"치매요양보호기술-인지활동 지원 및 관리","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-인지활동 지원 및 관리","curriculum":"치매요양보호기술-인지활동 지원 및 관리","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-인지활동 지원 및 관리","curriculum":"치매요양보호기술-인지활동 지원 및 관리","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"상황별 요양보호 기술","c":"치매요양보호기술-인지활동 지원 및 관리","curriculum":"치매요양보호기술-인지활동 지원 및 관리","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-인지활동 지원 및 관리","curriculum":"치매요양보호기술-인지활동 지원 및 관리","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-인지활동 지원 및 관리","curriculum":"치매요양보호기술-인지활동 지원 및 관리","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-인지활동 지원 및 관리","curriculum":"치매요양보호기술-인지활동 지원 및 관리","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"치매요양보호기술-인지활동 지원 및 관리","curriculum":"치매요양보호기술-인지활동 지원 및 관리","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1}]}],"completionDate":"2026-12-01","fieldwork":[{"label":"시설현장실습","requiredHours":40,"dates":["2026-11-18","2026-11-19","2026-11-20","2026-11-23","2026-11-24"]},{"label":"재가현장실습","requiredHours":40,"dates":["2026-11-25","2026-11-26","2026-11-27","2026-11-30","2026-12-01"]}],"classHours":{"T":126,"P":114}},"sw":{"name":"사회복지사","tt":[{"date":"2026-10-12","w":"월","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 생활지원","c":"신체활동지원-식사와 영양 요양보호","curriculum":"신체활동지원-식사와 영양 요양보호","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-10-13","w":"화","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 인권","c":"노인복지와 장기요양제도","curriculum":"노인복지와 장기요양제도","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 인권","c":"노인복지와 장기요양제도","curriculum":"노인복지와 장기요양제도","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 인권","c":"노인복지와 장기요양제도","curriculum":"노인복지와 장기요양제도","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 인권","c":"노인복지와 장기요양제도","curriculum":"노인복지와 장기요양제도","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1}]},{"date":"2026-10-14","w":"수","p":[{"n":5,"t":"13:40","end":"14:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"요양보호와 인권","c":"인권과 직업윤리","curriculum":"인권과 직업윤리","mode":"T","teacher":"김주동","g":"이론(김주동)","hours":1}]},{"date":"2026-10-16","w":"금","p":[{"n":1,"t":"09:00","end":"09:50","s":"노화와 건강증진","c":"노화에 따른 변화와 질환","curriculum":"노화에 따른 변화와 질환","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"노화와 건강증진","c":"노화에 따른 변화와 질환","curriculum":"노화에 따른 변화와 질환","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1}]},{"date":"2026-10-20","w":"화","p":[{"n":1,"t":"09:00","end":"09:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"노화와 건강증진","c":"노인의 건강증진 및 질병예방","curriculum":"노인의 건강증진 및 질병예방","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1}]},{"date":"2026-10-23","w":"금","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"요양보호와 인권","c":"요양보호사의 인권보호와 자기계발","curriculum":"요양보호사의 인권보호와 자기계발","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1}]},{"date":"2026-10-30","w":"금","p":[{"n":2,"t":"10:00","end":"10:50","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":3,"t":"11:00","end":"11:50","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":4,"t":"12:00","end":"12:50","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"T","teacher":"한명숙","g":"이론(한명숙)","hours":1},{"n":5,"t":"13:40","end":"14:30","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":6,"t":"14:40","end":"15:30","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1},{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"치매요양보호기술- 치매 대상자와 가족","curriculum":"치매요양보호기술- 치매 대상자와 가족","mode":"P","teacher":"한명숙","g":"실기(한명숙)","hours":1}]},{"date":"2026-11-03","w":"화","p":[{"n":7,"t":"15:40","end":"16:30","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"T","teacher":"김은숙","g":"이론(김은숙)","hours":1},{"n":8,"t":"16:40","end":"17:30","s":"상황별 요양보호 기술","c":"응급상황 대처 및 감염관리","curriculum":"응급상황 대처 및 감염관리","mode":"P","teacher":"김은숙","g":"실기(김은숙)","hours":1}]},{"date":"2026-11-09","w":"월","p":[{"n":1,"t":"09:00","end":"09:50","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1},{"n":2,"t":"10:00","end":"10:50","s":"요양보호와 생활지원","c":"요양보호 기록과 요양보호","curriculum":"요양보호 기록과 업무보고","mode":"T","teacher":"심귀택","g":"이론(심귀택)","hours":1}]}],"completionDate":"2026-11-10","fieldwork":[{"label":"현장실습","requiredHours":8,"dates":["2026-11-10"]}],"classHours":{"T":32,"P":10}}}; /* C41_CANONICAL_DATA */
+(function(){
+  'use strict';
+  var INST='고려요양보호사교육원', COHORT='41', cache={}, pending={},requests={},profileTicket=0,profileOwner='';
+  var DATA=window.__C41_SCHEDULE__||{std:{name:'신규',tt:[],fieldwork:[]},sw:{name:'사회복지사',tt:[],fieldwork:[]}};
+  function institution(u){return String((u||{}).기관명||'').trim();}
+  function cohort(u){return String((u||{}).기수||'').replace(/[^0-9]/g,'');}
+  function is41(u){u=u||window.CURR_USER;return !!u&&!u.isGuest&&institution(u)===INST&&cohort(u)===COHORT;}
+  function isStaff(){
+    if(window.SUPER_USER)return true;
+    if(window.ADMIN_USER&&institution(window.ADMIN_USER)===INST)return true;
+    var u=window.CURR_USER;if(!u||u.isGuest||institution(u)!==INST)return false;
+    return ['teacher','admin','staff'].indexOf(String(u.role||'').toLowerCase())>=0||['0','00'].indexOf(cohort(u))>=0;
+  }
+  function canView(){return isStaff()||is41(window.CURR_USER);}
+  function identity(u){u=u||{};return [institution(u),cohort(u),u.name||'',String(u.birth||'').replace(/[^0-9]/g,'').slice(-6)].join('|');}
+  function explicitCourse(u){
+    u=u||{};var keys=['course','과정','교육과정','구분','gubun','courseName','자격'];
+    for(var i=0;i<keys.length;i++){
+      var value=String(u[keys[i]]||'').trim().toLowerCase();
+      if(/사회\s*복지사|social[ _-]?worker|^sw$/.test(value))return 'sw';
+      if(/신규|표준|standard|^std$|320\s*시간/.test(value))return 'std';
+    }return '';
+  }
+  function course(u){u=u||window.CURR_USER||{};if(!is41(u))return 'std';return cache[identity(u)]||explicitCourse(u)||'std';}
+  function userDocId(u){
+    if(typeof window._userDocId==='function')return window._userDocId(u);
+    return [u.기관명||'',u.기수||'',u.name||'',u.birth||''].join('__').replace(/[\/\.]/g,'_');
+  }
+  function resolveCourse(u,forceFresh){
+    u=u||window.CURR_USER||{};var snapshot=Object.assign({},u),key=identity(snapshot),known=explicitCourse(snapshot);
+    if(!is41(u))return Promise.resolve('std');
+    if(!forceFresh&&cache[key])return Promise.resolve(cache[key]);
+    if(!forceFresh&&known){cache[key]=known;return Promise.resolve(known);}
+    if(pending[key])return pending[key];
+    var db=window._FB&&window._FB.db;if(!db)return Promise.resolve(cache[key]||known||'std');var request=(requests[key]||0)+1;requests[key]=request;
+    pending[key]=Promise.resolve(window._FB.authReady).then(function(){return db.collection('users').doc(userDocId(snapshot)).get();}).then(function(s){
+      var v=s.exists?(s.data()||{}):{};
+      if(requests[key]===request&&is41(v)&&identity(v)===key){var k=explicitCourse(v);if(k)cache[key]=k;}
+      return cache[key]||known||'std';
+    }).catch(function(){return cache[key]||known||'std';}).then(function(k){delete pending[key];return k;});
+    return pending[key];
+  }
+  function today(){var d=new Date(Date.now()+9*60*60*1000);return d.toISOString().slice(0,10);}
+  function allowedCourse(k,u){return !!DATA[k]&&(isStaff()||(is41(u||window.CURR_USER)&&course(u||window.CURR_USER)===k));}
+  function docId(u){u=u||window.CURR_USER||{};if(!is41(u))return '';return ('main41_'+(u.name||'')+'_'+String(u.birth||'').replace(/[^0-9]/g,'').slice(-6)).replace(/[\/\.\#\$\[\]\s]/g,'_');}
+  function signatureId(u){u=u||window.CURR_USER||{};if(!is41(u))return '';return ('main41_41기_'+(u.name||'')+'_'+String(u.birth||'').replace(/[^0-9]/g,'').slice(-6)).replace(/[\/\.\#\$\[\]\s]/g,'_');}
+  var C=window.C41={institution:INST,cohort:COHORT,courses:DATA,data:DATA,is41:is41,isStaff:isStaff,canView:canView,course:course,resolveCourse:resolveCourse,allowedCourse:allowedCourse,today:today,signatureId:signatureId,docId:docId,identity:identity};
+  var current='std',selected=0,ticket=0;
+  function el(id){return document.getElementById(id);}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function longDate(s){var a=String(s).split('-');return a.length===3?(+a[1])+'월 '+(+a[2])+'일':s;}
+  function tt(){return (DATA[current]&&DATA[current].tt)||[];}
+  function defaultDay(){var a=tt(),d=today();for(var i=0;i<a.length;i++)if(a[i].date>=d)return i;return a.length?a.length-1:0;}
+  function periodType(p){return p.mode==='T'||String(p.g||'').indexOf('이론')===0?'이론':(p.mode==='P'||String(p.g||'').indexOf('실기')===0?'실기':'현장실습');}
+  function render(){
+    if(!canView()||!allowedCourse(current)){hide();return;}
+    var a=tt(),c=DATA[current],h='',th=0,pr=0;
+    el('tt41Title').textContent='41기 시간표 · '+c.name;
+    el('tt41Tabs').style.display=isStaff()?'flex':'none';
+    if(isStaff())el('tt41Tabs').innerHTML=['std','sw'].map(function(k){return '<button class="'+(k===current?'on':'')+'" onclick="tt41Course(\''+k+'\')">'+esc(DATA[k].name)+'</button>';}).join('');
+    a.forEach(function(d){d.p.forEach(function(p){if(periodType(p)==='이론')th+=Number(p.hours||1);else if(periodType(p)==='실기')pr+=Number(p.hours||1);});});
+    h='<b>'+esc(INST)+'</b><br>'+esc(c.name)+' · 교육원 수업 '+a.length+'일<br>이론 <b>'+th+'시간</b> + 실기 <b>'+pr+'시간</b>';
+    if(a.length)h+='<br>교육원 수업 '+longDate(a[0].date)+' ~ '+longDate(a[a.length-1].date);
+    (c.fieldwork||[]).forEach(function(f){h+='<br>'+esc(f.label)+' <b>'+Number(f.requiredHours||0)+'시간</b>'+((f.dates||[]).length?' · '+longDate(f.dates[0])+(f.dates.length>1?' ~ '+longDate(f.dates[f.dates.length-1]):''):'');});
+    if(c.completionDate)h+='<br>수료일 <b>'+longDate(c.completionDate)+'</b>';
+    el('tt41Sum').innerHTML=h;
+    if(selected>=a.length)selected=Math.max(0,a.length-1);
+    el('tt41Prev').disabled=selected===0;el('tt41Next').disabled=selected>=a.length-1;
+    var picker=el('tt41Date');picker.value=a[selected]?a[selected].date:'';picker.min=a.length?a[0].date:'';picker.max=a.length?a[a.length-1].date:'';
+    el('tt41Chips').innerHTML=a.map(function(d,i){return '<button class="c41-chip'+(i===selected?' on':'')+(d.date===today()?' today':'')+'" onclick="tt41Pick('+i+')">'+longDate(d.date)+'<small>'+esc(d.w||'')+'</small></button>';}).join('');
+    var d=a[selected];if(!d){el('tt41Day').innerHTML='<div class="c41-empty">등록된 시간표가 없습니다.</div>';return;}
+    h='<div class="c41-daytitle">'+longDate(d.date)+' ('+esc(d.w||'')+')'+(d.date===today()?' · 오늘':'')+'</div>';
+    d.p.forEach(function(p){var type=periodType(p);h+='<div class="c41-period"><div class="c41-no">'+esc(p.n)+'교시<small>'+esc(p.t)+(p.end?' ~ '+esc(p.end):'')+'</small></div><div><div class="c41-subject">'+esc(p.s)+'</div><div class="c41-content">'+esc(p.c||p.content||'')+'</div><span class="c41-badge'+(type==='실기'?' practice':'')+'">'+type+'</span><span class="c41-teacher">'+esc(p.teacher||p.instructor||'')+'</span></div></div>';});
+    el('tt41Day').innerHTML=h;
+  }
+  function hide(){++ticket;var box=el('tt41');if(box)box.classList.add('hidden');}
+  window.tt41Open=function(k){
+    if(!canView())return;var u=window.CURR_USER,t=++ticket;
+    current=isStaff()&&DATA[k]?k:course(u);selected=defaultDay();el('tt41').classList.remove('hidden');
+    try{history.pushState({tt41:1},'','#tt41');}catch(e){}
+    render();if(!isStaff())resolveCourse(u).then(function(resolved){if(t!==ticket||u!==window.CURR_USER||!canView())return;current=resolved;selected=defaultDay();render();});
+  };
+  window.tt41Close=function(){hide();if(typeof window.showModeSelect==='function')window.showModeSelect();};
+  window.tt41Course=function(k){if(!isStaff()||!DATA[k])return;current=k;selected=defaultDay();render();};
+  window.tt41Pick=function(i){if(!canView()||!allowedCourse(current))return;selected=Math.max(0,Math.min(tt().length-1,Number(i)||0));render();};
+  window.tt41Move=function(v){window.tt41Pick(selected+v);};
+  window.tt41Date=function(value){if(!canView()||!allowedCourse(current))return;var a=tt(),i=a.findIndex(function(d){return d.date===value;});if(i>=0){selected=i;render();}else{el('tt41Date').value=a[selected]?a[selected].date:'';if(typeof window.altOpen==='function')window.altOpen('선택한 날짜에는 교육원 수업이 없습니다. 수업일 버튼에서 골라 주세요.',null);else alert('선택한 날짜에는 교육원 수업이 없습니다. 수업일 버튼에서 골라 주세요.');}};
+  function scopeAcademicUI(){
+    var mainStaff=isStaff()&&!window.SUPER_USER;
+    var legacy='.mode-card.tt57,.mode-card.tt58,.mode-card.ori57,.mode-card.ori58,.mode-card.intern,.mode-card.intern57,.mode-card.internship,[onclick="oriAdminOpen()"],[onclick="ori58Open()"],[onclick="internOpen()"]';
+    if(mainStaff)document.querySelectorAll(legacy).forEach(function(item){
+      if(!item.hasAttribute('data-c41-hidden'))item.setAttribute('data-c41-prev-display',item.style.display||'');
+      item.style.display='none';item.setAttribute('data-c41-hidden','1');
+    });
+    else document.querySelectorAll('[data-c41-hidden="1"]').forEach(function(item){
+      item.style.display=item.getAttribute('data-c41-prev-display')||'';
+      item.removeAttribute('data-c41-hidden');item.removeAttribute('data-c41-prev-display');
+    });
+  }
+  window.tt41EnsureCard=function(){
+    scopeAcademicUI();
+    var cards=document.querySelector('#modeSelect .mode-cards');if(!canView()){hide();if(el('tt41Day'))el('tt41Day').innerHTML='';}
+    if(!cards)return;var existing=cards.querySelector('.mode-card.tt41');
+    if(canView()&&!existing){var card=document.createElement('div');card.className='mode-card tt41';card.setAttribute('onclick','tt41Open()');card.innerHTML='<div class="mode-card-icon">📅</div><div class="mode-card-title">시간표</div><div class="mode-card-sub">고려요양보호사교육원<br>41기 수업 날짜·교시</div>';cards.appendChild(card);}else if(!canView()&&existing)existing.remove();
+  };
+  C.refreshProfile=function(u,cb){
+    if(typeof u==='function'){cb=u;u=window.CURR_USER;}u=u||window.CURR_USER||{};
+    var key=identity(u),request=++profileTicket;
+    return resolveCourse(u,true).then(function(k){if(request!==profileTicket||identity(window.CURR_USER)!==key)return null;if(typeof cb==='function')cb(k);window.tt41EnsureCard();return k;});
+  };
+  C.refresh=function(){window.tt41EnsureCard();};
+  C.scopeUI=scopeAcademicUI;
+  if(typeof window.addEventListener==='function')window.addEventListener('popstate',function(){var box=el('tt41');if(box&&!box.classList.contains('hidden')&&location.hash!=='#tt41')hide();});
+  setInterval(function(){try{scopeAcademicUI();var ms=el('modeSelect');if(ms&&!ms.classList.contains('hidden')){window.tt41EnsureCard();if(is41(window.CURR_USER)){var key=identity(window.CURR_USER);if(profileOwner!==key){profileOwner=key;C.refreshProfile();}}else profileOwner='';}else if(!canView())hide();}catch(e){}},1000);
+})();
+</script>
+
+<style>
+#ori41Page{position:fixed;inset:0;background:#f4f6fa;z-index:9100;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#ori41Page.hidden{display:none}
+.o41-top{position:sticky;top:0;background:#1d4ed8;color:#fff;display:flex;align-items:center;gap:8px;padding:12px;z-index:5;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.o41-back{background:rgba(255,255,255,.18);border:0;color:#fff;border-radius:9px;padding:8px 12px;font-size:14px;font-weight:700}
+.o41-ttl{flex:1;font-size:20px;font-weight:800;text-align:center}
+.o41-prt{background:#fff;color:#1d4ed8;border:0;border-radius:9px;padding:8px 11px;font-size:14px;font-weight:800}
+.o41-wrap{padding:14px 12px 108px;max-width:820px;margin:0 auto}
+.o41-step{display:none}
+.o41-step.on{display:block}
+.o41-prog{background:#e2e8f0;border-radius:999px;height:8px;margin:0 0 10px;overflow:hidden}
+.o41-prog i{display:block;height:100%;background:#1d4ed8;border-radius:999px;transition:width .25s}
+.o41-pgtxt{text-align:center;font-size:18px;color:#334155;font-weight:800;margin-bottom:12px}
+.o41-nav{position:fixed;left:0;right:0;bottom:0;background:#fffffff2;border-top:1px solid #cbd5e1;padding:10px 12px;display:flex;gap:10px;z-index:20}
+.o41-nav button{flex:1;padding:20px;border:0;border-radius:12px;font-size:22px;font-weight:800}
+.o41-nav .prev{background:#e2e8f0;color:#475569}
+.o41-nav .next{background:#1d4ed8;color:#fff}
+.o41-nav button:disabled{opacity:.4}
+.o41-sec h3{font-size:24px}
+.o41-li{font-size:20px;line-height:1.95}
+.o41-li.warn{font-size:19px}
+.o41-head{background:#fff;border-radius:14px;padding:18px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:12px}
+.o41-head h2{margin:0 0 6px;font-size:25px;color:#0f172a}
+.o41-head .sub{font-size:17px;color:#475569}
+.o41-sec{background:#fff;border-radius:14px;padding:16px 16px 12px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.o41-sec.kb{background:#fffbeb;border:2px solid #fbbf24}
+.o41-sec h3{margin:0 0 14px;font-size:24px;color:#1e293b;line-height:1.4;font-weight:800}
+.o41-sec.kb h3{color:#92400e}
+.o41-li{display:flex;gap:10px;font-size:20px;line-height:1.95;color:#1f2937;margin-bottom:13px}
+.o41-li .dot{flex:0 0 9px;height:9px;border-radius:50%;background:#93c5fd;margin-top:14px}
+.o41-li.kb{background:#fef9c3;border-left:5px solid #f59e0b;border-radius:8px;padding:12px 13px}
+.o41-li.kb .dot{background:#f59e0b}
+.o41-li.warn{background:#fef2f2;border-left:6px solid #dc2626;border-radius:8px;padding:14px;color:#7f1d1d;font-size:19px}
+.o41-li.warn .dot{background:#dc2626}
+.o41-li.warn b{color:#b91c1c}
+.o41-badge{display:inline-block;background:#f59e0b;color:#fff;font-size:14px;font-weight:800;border-radius:999px;padding:3px 10px;margin-right:7px;vertical-align:2px}
+.o41-note{margin-top:10px;background:#f1f5f9;border-radius:9px;padding:12px 14px;font-size:17px;color:#334155;line-height:1.8}
+.o41-cons{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.o41-cons h3{margin:0 0 12px;font-size:24px;color:#0f172a}
+.o41-ck{display:flex;gap:12px;align-items:flex-start;font-size:19px;line-height:1.8;color:#1f2937;padding:14px;border:2px solid #e2e8f0;border-radius:10px;margin-bottom:10px}
+.o41-ck.kb{background:#fffbeb;border-color:#fbbf24}
+.o41-ck input{width:30px;height:30px;margin-top:2px;flex:0 0 30px}
+.o41-all{width:100%;padding:18px;border:0;border-radius:12px;background:#e0e7ff;color:#1e3a8a;font-size:20px;font-weight:800;margin-bottom:14px}
+.o41-all.on{background:#1d4ed8;color:#fff}
+.o41-signbox{margin-top:14px;border-top:1px dashed #cbd5e1;padding-top:14px}
+.o41-signbox h4{margin:0 0 10px;font-size:21px;color:#0f172a}
+.o41-canv{width:100%;height:200px;border:2px dashed #94a3b8;border-radius:10px;background:#fff;touch-action:none}
+.o41-signimg{max-width:230px;max-height:110px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;display:block}
+.o41-btnrow{display:flex;gap:8px;margin-top:10px}
+.o41-btn{flex:1;padding:18px;border:0;border-radius:12px;font-size:20px;font-weight:800;background:#1d4ed8;color:#fff}
+.o41-btn.sec{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
+.o41-done{background:#dcfce7;border:2px solid #86efac;border-radius:12px;padding:16px;font-size:19px;color:#166534;line-height:1.8;margin-bottom:14px;font-weight:700}
+.o41-adm{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);font-size:14px;color:#334155}
+.o41-adm table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.o41-adm th,.o41-adm td{border:1px solid #e2e8f0;padding:6px;text-align:center}
+.o41-adm th{background:#f1f5f9}
+.o41-kbq{background:#eff6ff;border:2px solid #93c5fd;border-radius:12px;padding:16px;margin-bottom:14px}
+.o41-kbq-t{font-size:21px;font-weight:800;color:#1e3a8a;line-height:1.5;margin-bottom:12px;text-align:center}
+.o41-kbq-b{display:flex;gap:10px}
+.o41-kbq-btn{flex:1;padding:18px 10px;border:2px solid #cbd5e1;background:#fff;border-radius:12px;font-size:19px;font-weight:800;color:#475569}
+.o41-kbq-btn.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.o41-kbq-n{font-size:16px;color:#334155;line-height:1.7;margin-top:10px;text-align:center}
+.o41-kbq-warn{font-size:17px;color:#b45309;font-weight:800;text-align:center;margin-top:10px}
+.o41-ck.na{opacity:.45}
+.o41-skip{background:#f1f5f9;border:1px dashed #94a3b8;border-radius:10px;padding:13px;font-size:17px;color:#475569;text-align:center;line-height:1.7;margin-bottom:10px}
+@media print{
+  body.ori41Printing>*{display:none!important}
+  #ori41Page{display:none!important}
+  body.ori41Printing #ori41Page{display:block!important;position:static!important;background:#fff!important;overflow:visible!important}
+  .o41-top,.o41-prt,.o41-all,.o41-btnrow,.o41-adm,.o41-canv,.o41-nav,.o41-prog,.o41-pgtxt,.o41-course{display:none!important}
+  .o41-step{display:block!important}
+  body.ori41PrintAdm .o41-step,body.ori41PrintAdm .o41-head,body.ori41PrintAdm .o41-cons{display:none!important}
+  body.ori41PrintAdm .o41-adm{display:block!important;box-shadow:none;border:0;padding:0}
+  body.ori41PrintAdm .o41-adm .noprint{display:none!important}
+  body.ori41PrintAdm .o41-adm table{font-size:11pt}
+  body.ori41PrintAdm .o41-adm th,body.ori41PrintAdm .o41-adm td{padding:5px}
+  body.ori41PrintAdm .o41-adm img{height:40px}
+  .o41-wrap{max-width:none;padding:0}
+  .o41-sec,.o41-cons,.o41-head{box-shadow:none;border:1px solid #ddd;page-break-inside:avoid;margin-bottom:8px}
+  .o41-li{font-size:12.5px;line-height:1.5;margin-bottom:4px}
+  .o41-sec h3{font-size:14px;margin-bottom:7px}
+  .o41-head h2{font-size:17px}
+  .o41-ck{font-size:12.5px;padding:6px}
+  @page{size:A4;margin:12mm}
+}
+</style>
+<div id="ori41Page" class="hidden">
+  <div class="o41-top"><button class="o41-back" onclick="ori41Close()">◀ 목록</button><div class="o41-ttl">📋 오리엔테이션</div><button class="o41-prt" onclick="ori41Print()">🖨 인쇄</button></div>
+  <div class="o41-wrap" id="ori41Body"></div>
+</div>
+<script>
+(function(){
+  var DOCS={"std":{"title":"41기 신규자 표준과정 오리엔테이션","gisu":"41","subtitle":"41기 신규자 · 2026년 10월 12일 ~ 12월 1일","org":"고려요양보호사교육원","date":"2026-10-12","sections":[{"h":"0. 본인 교육과정 확인","kind":"all","items":[{"t":"이 안내는 <b>고려요양보호사교육원 41기 신규자 표준과정</b>에 해당합니다.","w":"all"},{"t":"<b>이론·실기·현장실습 각각의 출석 기준과 실습 평가 기준</b>을 충족해야 수료할 수 있습니다.","w":"all"},{"t":"내일배움카드를 사용하는 경우 본인 훈련과정의 출결·지원 기준도 별도로 확인해 주세요.","w":"all"}]},{"h":"1. 교훈과 교육 방침","kind":"all","items":[{"t":"<b>교훈</b> — 소통을 통한 만족, 협업을 통한 봉사, 발전하는 모습으로 생명·건강·복지의 가치 창조","w":"all"},{"t":"<b>교육 방침</b><br>① 더불어 함께하는 생활인 양성<br>② 꿈과 희망이 이루어지는 직업 전문교육<br>③ 전문교육을 통한 취업과 일자리 창출","w":"all"}]},{"h":"2. 우리 과정은 이렇게 진행됩니다","kind":"all","items":[{"t":"<b>교육 기간</b> : 2026년 10월 12일(월) ~ 12월 1일(화)","w":"all"},{"t":"<b>전체 320시간</b> = 이론 126시간 + 실기 114시간 + 현장실습 80시간","w":"all"},{"t":"<b>교육원 수업</b> : 10월 12일 ~ 11월 17일, 30일·240시간","w":"all"},{"t":"<b>수업 시간표</b> : 1교시 09:00~09:50, 4교시 12:00~12:50, 5교시 13:40~14:30, 8교시 16:40~17:30입니다. 날짜별 전 교시는 앱 「수업 시간표」에서 확인해 주세요.","w":"all"},{"t":"중간 휴식은 시간표와 교육원 안내에 따릅니다.","w":"all"},{"t":"수업은 50분 수업·10분 휴식이 원칙이며, 하루 8시간 이내입니다.","w":"all"},{"t":"<b>현장실습</b> : 11월 18일 ~ 12월 1일, 총 10일·80시간","w":"all"},{"t":"실습기관 사정으로 일정이 변경되면 교육원에서 안내합니다.","w":"all"}]},{"h":"3. 현장실습 안내","kind":"all","items":[{"t":"<b>시설 실습 40시간</b> : 11월 18일·19일·20일·23일·24일","w":"all"},{"t":"<b>재가 실습 40시간</b> : 11월 25일·26일·27일·30일·12월 1일","w":"all"},{"t":"<b>실습은 배정된 일정에 빠짐없이 참석하는 것이 원칙</b>입니다. 부득이하게 참석이 어려우면 미리 교육원에 연락해 주세요.","w":"all"},{"t":"이론·실기 교육을 마친 뒤 실습지도자의 지도에 따라 실습합니다.","w":"all"},{"t":"배정 기관, 기관별 도착·종료 시간과 준비물은 교육원에서 별도로 안내합니다.","w":"all"},{"t":"실습일지와 출석 확인을 빠짐없이 작성해 주세요.","w":"all"},{"t":"실습 중 알게 된 어르신의 개인정보·사진·건강정보를 외부에 공개하지 않습니다.","w":"all"}]},{"h":"4. 수료 기준과 실습 평가","kind":"all","items":[{"t":"<b>이론·실기·현장실습을 각각 80% 이상</b> 출석하고 현장실습 평가에 합격해야 수료할 수 있습니다.","w":"all"},{"t":"<b>교시 단위 이론·실기 최소 출석</b><br>· 이론 126시간 중 101시간 이상<br>· 실기 114시간 중 92시간 이상","w":"all"},{"t":"현장실습은 전체 출석 기준과 시설·재가별 기준을 모두 충족해야 합니다. 안내된 실습 일정에 전부 참여해 주세요.","w":"all"},{"t":"정해진 전체 시간표대로 참여하는 것이 원칙입니다. 최소 출석 기준은 수업이나 실습을 미리 줄여도 된다는 뜻이 아닙니다.","w":"all"},{"t":"<b>실습 평가</b> : 각 교육 세부내용별 70점 이상이며, 전체 평균이 80점 이상이어야 합니다.","w":"all"},{"t":"출석 기준을 충족해도 실습 평가에 불합격하면 수료할 수 없습니다. 불합격 시 실습기관이 정한 재교육 후 2차 평가를 받을 수 있습니다.","w":"all"},{"t":"결석한 경우 결석사유서와 필요한 증빙을 제출해 주세요.","w":"all"}],"note":"수료·평가 근거: 2026 요양보호사 양성지침 29쪽·59~60쪽."},{"h":"5. 출석과 연락","kind":"all","items":[{"t":"<b>본인 시간표에 있는 교시마다</b> 출석을 확인합니다. 출석 확인 방법은 교육원 안내를 따라 주세요.","w":"all"},{"t":"출석을 확인한 뒤 실제 수업에도 참여해야 합니다.","w":"all"},{"t":"결석·지각·조퇴·외출이 필요한 경우 <b>미리 교육원에 연락</b>하고 사유서를 제출해 주세요.","w":"all"},{"t":"사유서는 앱 「사유서」에서 작성할 수 있습니다. 교육원에서 요구하는 증빙도 함께 제출해 주세요.","w":"all"},{"t":"<b>사유서 작성</b> : 교육원이 지정한 날짜·교시와 결석·지각·조퇴·외출 구분을 확인하고, 본인이 사유를 작성한 뒤 서명하여 저장합니다. 교육원이 지정한 날짜·교시·구분은 학생이 변경할 수 없습니다.","w":"all"},{"t":"경조사 등 출석 인정은 해당 기준과 증빙을 확인한 뒤 적용합니다.","w":"all"}],"note":"교시별 출석과 출석 인정 근거: 2026 요양보호사 양성지침 26쪽·29쪽."},{"h":"6. 내일배움카드 이용자 안내","kind":"all","items":[{"t":"내일배움카드 이용자는 본인 훈련과정의 출결·지원금·중도탈락 기준을 별도로 확인해 주세요.","w":"kb"},{"t":"지원 여부와 금액은 개인 자격과 훈련과정에 따라 다릅니다. 교육원 또는 고용센터에 확인해 주세요.","w":"kb"}]},{"h":"7. 교육 중 지켜주실 것","kind":"all","items":[{"t":"대리 출석 등 부정행위를 하지 않습니다.","w":"all"},{"t":"수업 시간과 점심시간을 지켜 주세요.","w":"all"},{"t":"성적인 농담이나 상대방을 불쾌하게 하는 대화는 삼가 주세요.","w":"all"},{"t":"병원 진료, 여행, 근무, 다른 교육 등 수업에 영향을 주는 일정은 미리 교육원에 문의해 주세요.","w":"all"},{"t":"수강생 서로의 호칭은 <b>“선생님”</b>으로 해 주세요.","w":"all"}]},{"h":"8. 제출 서류와 비용","kind":"all","items":[{"t":"<b>공통 제출 서류</b> : 신분증 사본 1장, 반명함 사진 2매","w":"all"},{"t":"<b>표준요양보호사교재</b> : 무료 지급","w":"all"},{"t":"<b>별도 본인 부담 비용</b><br>· 국시원 원서접수비 35,000원<br>· 문제지 구매비 25,000원<br>· 자격증 발급비 10,000원","w":"all"},{"t":"건강진단서 비용과 납부 시기는 교육원에서 별도로 안내합니다.","w":"all"}],"note":"교재와 문제지 비용은 제공된 교육원 오리엔테이션 안내를 반영했습니다."},{"h":"9. 시험 안내","kind":"all","items":[{"t":"<b>문제 수</b> : 필기 35문항 + 실기 45문항 = 80문항, 객관식 5지선다형입니다.","w":"all"},{"t":"<b>시험 시간</b> : 90분","w":"all"},{"t":"<b>합격 기준</b> : 필기·실기 각각 60% 이상입니다. 필기 21문항 이상, 실기 27문항 이상 맞아야 합니다.","w":"all"},{"t":"<b>응시자격</b> : 시험시행일 이전까지 본인 교육과정을 정상적으로 수료해야 합니다.","w":"all"},{"t":"<b>41기 시험일·시험장·접수일</b>은 교육원에서 별도로 안내합니다. 본인의 응시표에서 확정 일정을 확인해 주세요.","w":"all"}],"note":"시험 근거: 2026 요양보호사 양성지침 11쪽, 국시원 요양보호사 시험시간표."},{"h":"10. 합격 후 자격증 신청","kind":"all","items":[{"t":"합격 후 발급신청서·사진·교육수료증명서·건강진단서 등 필요한 서류를 교육원 안내에 따라 준비합니다.","w":"all"},{"t":"<b>건강진단서</b>는 국시원에 신청서류가 도착한 날을 기준으로 30일 이내 발급된 것이어야 합니다.","w":"all"},{"t":"건강진단서에는 정신건강복지법상 정신질환자 및 마약·대마 또는 향정신성의약품 중독자가 아니라는 내용이 명확히 기재되어 있어야 합니다.","w":"all"},{"t":"신청 방법과 자격증 수령 방법은 합격 후 교육원에서 안내합니다.","w":"all"}],"note":"자격증 신청 서류 근거: 2026 요양보호사 양성지침 11~12쪽."},{"h":"11. 취업할 수 있는 곳","kind":"all","items":[{"t":"방문요양·방문목욕 기관","w":"all"},{"t":"주·야간보호시설","w":"all"},{"t":"노인요양시설·노인요양공동생활가정","w":"all"},{"t":"그 밖의 돌봄 분야는 해당 분야의 자격과 교육 요건을 확인해 주세요.","w":"all"}]},{"h":"12. 안전과 비상 대피","kind":"all","items":[{"t":"<b>교육원 위치</b> : 강원도 횡성군 횡성읍 중앙로 12, 2층","w":"all"},{"t":"화재를 발견하면 큰 소리로 알리고 비상벨을 누른 뒤 119에 신고합니다.","w":"all"},{"t":"아래 안내도의 피난 동선을 따라 몸을 낮추고 <b>정문 계단으로 대피</b>합니다. 교육 시작일에 강의실에서 계단까지의 길을 확인해 주세요.","w":"all"},{"t":"건물 밖으로 대피한 뒤에는 물건을 가지러 다시 들어가지 않습니다.","w":"all"},{"t":"소화기는 안전핀을 뽑고 호스를 불 쪽으로 향한 뒤 손잡이를 눌러 골고루 분사합니다. 안전하게 초기 진화할 수 있는 경우에 사용합니다.","w":"all"}],"note":"제공된 횡성 교육원 오리엔테이션의 피난안내도입니다.","imgs":[{"f":"횡성_피난안내도.png","c":"횡성 교육원 2층 피난 동선 · 정문 계단","d":"orientation/hoeng41_evacuation.png"}]},{"h":"13. 우리 교육원의 비전","kind":"all","items":[{"t":"소통과 협업을 통해 생명·건강·복지의 가치를 실천하는 인재를 양성합니다.","w":"all"},{"t":"전문교육을 바탕으로 취업과 일자리 창출을 지원합니다.","w":"all"}]}],"consent":[{"t":"위 오리엔테이션 내용을 안내받고 잘 이해하였습니다.","w":"all"},{"t":"이론·실기·현장실습의 출석 기준과 현장실습 평가 기준을 충족해야 수료할 수 있음을 확인하였습니다.","w":"all"},{"t":"정해진 수업과 실습 일정에 성실히 참여하고, 부득이한 결석·지각·조퇴·외출은 미리 연락하고 사유서를 제출하겠습니다.","w":"all"},{"t":"교육과 실습에서 알게 된 어르신의 개인정보·사진·건강정보를 외부에 공개하지 않겠습니다.","w":"all"},{"t":"교육 운영을 위해 이름·생년월일·연락처·출결기록이 수집·이용되는 것에 동의합니다.","w":"all"},{"t":"내일배움카드로 교육받는 경우 본인 훈련과정의 출결·지원금 기준도 함께 확인하였습니다.","w":"kb"}],"course":"std"},"sw":{"title":"41기 사회복지사 자격 소지자 과정 오리엔테이션","gisu":"41","subtitle":"41기 사회복지사 · 2026년 10월 12일 ~ 11월 10일","org":"고려요양보호사교육원","date":"2026-10-12","sections":[{"h":"0. 본인 교육과정 확인","kind":"all","items":[{"t":"이 안내는 <b>고려요양보호사교육원 41기 사회복지사 자격 소지자 과정</b>에 해당합니다.","w":"all"},{"t":"<b>이론·실기·현장실습 각각의 출석 기준과 실습 평가 기준</b>을 충족해야 수료할 수 있습니다.","w":"all"},{"t":"내일배움카드를 사용하는 경우 본인 훈련과정의 출결·지원 기준도 별도로 확인해 주세요.","w":"all"}]},{"h":"1. 교훈과 교육 방침","kind":"all","items":[{"t":"<b>교훈</b> — 소통을 통한 만족, 협업을 통한 봉사, 발전하는 모습으로 생명·건강·복지의 가치 창조","w":"all"},{"t":"<b>교육 방침</b><br>① 더불어 함께하는 생활인 양성<br>② 꿈과 희망이 이루어지는 직업 전문교육<br>③ 전문교육을 통한 취업과 일자리 창출","w":"all"}]},{"h":"2. 우리 과정은 이렇게 진행됩니다","kind":"all","items":[{"t":"<b>교육 기간</b> : 2026년 10월 12일(월) ~ 11월 10일(화)","w":"all"},{"t":"<b>전체 50시간</b> = 이론 32시간 + 실기 10시간 + 현장실습 8시간","w":"all"},{"t":"<b>교육원 수업</b> : 10월 12일 ~ 11월 9일, 총 9일·42시간","w":"all"},{"t":"<b>날짜마다 시작·종료 교시가 다릅니다.</b> 앱 「수업 시간표」에서 사회복지사 과정의 날짜와 시간을 확인해 주세요.","w":"all"},{"t":"수업은 50분 수업·10분 휴식이 원칙이며, 하루 8시간 이내입니다.","w":"all"},{"t":"<b>현장실습</b> : 11월 10일, 1일·8시간","w":"all"},{"t":"실습기관 사정으로 일정이 변경되면 교육원에서 안내합니다.","w":"all"}]},{"h":"3. 현장실습 안내","kind":"all","items":[{"t":"<b>실습일</b> : 2026년 11월 10일(화), 8시간","w":"all"},{"t":"<b>노인요양시설 또는 재가노인복지시설</b> 중 본인에게 배정된 기관에서 실습합니다.","w":"all"},{"t":"<b>실습 부재 불가</b> : 실습 면제 승인자를 제외하고 배정된 하루 8시간을 전부 참석해 주세요. 부재나 불성실한 참여는 실습 평가에 영향을 줄 수 있습니다.","w":"all"},{"t":"이론·실기 교육을 마친 뒤 실습지도자의 지도에 따라 실습합니다.","w":"all"},{"t":"배정 기관, 도착·종료 시간과 준비물은 교육원에서 별도로 안내합니다.","w":"all"},{"t":"실습일지와 출석 확인을 빠짐없이 작성해 주세요.","w":"all"},{"t":"<b>실습 면제</b> : 인정 대상 기관에서 사회복지사 자격 관련 업무에 종사한 경력이 1년 이상이면서 1,200시간 이상인 경우, 증빙 확인을 거쳐 적용할 수 있습니다. 자격증 소지만으로 자동 면제되지 않습니다.","w":"all"},{"t":"실습 중 알게 된 어르신의 개인정보·사진·건강정보를 외부에 공개하지 않습니다.","w":"all"}],"note":"교육시간·실습 면제 근거: 2026 요양보호사 양성지침 9쪽·47쪽."},{"h":"4. 수료 기준과 실습 평가","kind":"all","items":[{"t":"<b>이론·실기·현장실습을 각각 80% 이상</b> 출석하고 현장실습 평가에 합격해야 수료할 수 있습니다. 승인된 실습 면제자는 해당 면제 기준을 적용합니다.","w":"all"},{"t":"<b>교시 단위 이론·실기 최소 출석</b><br>· 이론 32시간 중 26시간 이상<br>· 실기 10시간 중 8시간 이상","w":"all"},{"t":"전체 시간표대로 참여하는 것이 원칙입니다. 교육원 실습 참석 안내에 따라 <b>실습 면제 승인자를 제외하고 8시간을 모두 참석</b>해 주세요.","w":"all"},{"t":"최소 출석 기준은 수업이나 실습을 미리 줄여도 된다는 뜻이 아닙니다.","w":"all"},{"t":"<b>실습 평가</b> : 각 교육 세부내용별 70점 이상이며, 전체 평균이 80점 이상이어야 합니다.","w":"all"},{"t":"출석 기준을 충족해도 실습 평가에 불합격하면 수료할 수 없습니다. 불합격 시 실습기관이 정한 재교육 후 2차 평가를 받을 수 있습니다.","w":"all"},{"t":"결석한 경우 결석사유서와 필요한 증빙을 제출해 주세요.","w":"all"}],"note":"수료·평가 근거: 2026 요양보호사 양성지침 29쪽·59~60쪽."},{"h":"5. 출석과 연락","kind":"all","items":[{"t":"<b>본인 시간표에 있는 교시마다</b> 출석을 확인합니다. 출석 확인 방법은 교육원 안내를 따라 주세요.","w":"all"},{"t":"출석을 확인한 뒤 실제 수업에도 참여해야 합니다.","w":"all"},{"t":"결석·지각·조퇴·외출이 필요한 경우 <b>미리 교육원에 연락</b>하고 사유서를 제출해 주세요.","w":"all"},{"t":"사유서는 앱 「사유서」에서 작성할 수 있습니다. 교육원에서 요구하는 증빙도 함께 제출해 주세요.","w":"all"},{"t":"<b>사유서 작성</b> : 교육원이 지정한 날짜·교시와 결석·지각·조퇴·외출 구분을 확인하고, 본인이 사유를 작성한 뒤 서명하여 저장합니다. 교육원이 지정한 날짜·교시·구분은 학생이 변경할 수 없습니다.","w":"all"},{"t":"경조사 등 출석 인정은 해당 기준과 증빙을 확인한 뒤 적용합니다.","w":"all"}],"note":"교시별 출석과 출석 인정 근거: 2026 요양보호사 양성지침 26쪽·29쪽."},{"h":"6. 내일배움카드 이용자 안내","kind":"all","items":[{"t":"내일배움카드 이용자는 본인 훈련과정의 출결·지원금·중도탈락 기준을 별도로 확인해 주세요.","w":"kb"},{"t":"지원 여부와 금액은 개인 자격과 훈련과정에 따라 다릅니다. 교육원 또는 고용센터에 확인해 주세요.","w":"kb"}]},{"h":"7. 교육 중 지켜주실 것","kind":"all","items":[{"t":"대리 출석 등 부정행위를 하지 않습니다.","w":"all"},{"t":"수업 시간과 점심시간을 지켜 주세요.","w":"all"},{"t":"성적인 농담이나 상대방을 불쾌하게 하는 대화는 삼가 주세요.","w":"all"},{"t":"병원 진료, 여행, 근무, 다른 교육 등 수업에 영향을 주는 일정은 미리 교육원에 문의해 주세요.","w":"all"},{"t":"수강생 서로의 호칭은 <b>“선생님”</b>으로 해 주세요.","w":"all"}]},{"h":"8. 제출 서류와 비용","kind":"all","items":[{"t":"<b>제출 서류</b> : 신분증 사본 1장, 반명함 사진 2매, 사회복지사 자격증 사본. 실습 면제 신청자는 경력 증빙도 제출합니다.","w":"all"},{"t":"<b>국시원 원서접수비</b> 35,000원, <b>자격증 발급비</b> 10,000원","w":"all"},{"t":"사회복지사 과정의 교재·문제지 비용, 건강진단서 비용과 납부 시기는 교육원에서 별도로 안내합니다.","w":"all"}]},{"h":"9. 시험 안내","kind":"all","items":[{"t":"<b>문제 수</b> : 필기 35문항 + 실기 45문항 = 80문항, 객관식 5지선다형입니다.","w":"all"},{"t":"<b>시험 시간</b> : 90분","w":"all"},{"t":"<b>합격 기준</b> : 필기·실기 각각 60% 이상입니다. 필기 21문항 이상, 실기 27문항 이상 맞아야 합니다.","w":"all"},{"t":"<b>응시자격</b> : 시험시행일 이전까지 본인 교육과정을 정상적으로 수료해야 합니다.","w":"all"},{"t":"<b>41기 시험일·시험장·접수일</b>은 교육원에서 별도로 안내합니다. 본인의 응시표에서 확정 일정을 확인해 주세요.","w":"all"}],"note":"시험 근거: 2026 요양보호사 양성지침 11쪽, 국시원 요양보호사 시험시간표."},{"h":"10. 합격 후 자격증 신청","kind":"all","items":[{"t":"합격 후 발급신청서·사진·교육수료증명서·건강진단서 등 필요한 서류를 교육원 안내에 따라 준비합니다.","w":"all"},{"t":"<b>건강진단서</b>는 국시원에 신청서류가 도착한 날을 기준으로 30일 이내 발급된 것이어야 합니다.","w":"all"},{"t":"건강진단서에는 정신건강복지법상 정신질환자 및 마약·대마 또는 향정신성의약품 중독자가 아니라는 내용이 명확히 기재되어 있어야 합니다.","w":"all"},{"t":"신청 방법과 자격증 수령 방법은 합격 후 교육원에서 안내합니다.","w":"all"}],"note":"자격증 신청 서류 근거: 2026 요양보호사 양성지침 11~12쪽."},{"h":"11. 취업할 수 있는 곳","kind":"all","items":[{"t":"방문요양·방문목욕 기관","w":"all"},{"t":"주·야간보호시설","w":"all"},{"t":"노인요양시설·노인요양공동생활가정","w":"all"},{"t":"그 밖의 돌봄 분야는 해당 분야의 자격과 교육 요건을 확인해 주세요.","w":"all"}]},{"h":"12. 안전과 비상 대피","kind":"all","items":[{"t":"<b>교육원 위치</b> : 강원도 횡성군 횡성읍 중앙로 12, 2층","w":"all"},{"t":"화재를 발견하면 큰 소리로 알리고 비상벨을 누른 뒤 119에 신고합니다.","w":"all"},{"t":"아래 안내도의 피난 동선을 따라 몸을 낮추고 <b>정문 계단으로 대피</b>합니다. 교육 시작일에 강의실에서 계단까지의 길을 확인해 주세요.","w":"all"},{"t":"건물 밖으로 대피한 뒤에는 물건을 가지러 다시 들어가지 않습니다.","w":"all"},{"t":"소화기는 안전핀을 뽑고 호스를 불 쪽으로 향한 뒤 손잡이를 눌러 골고루 분사합니다. 안전하게 초기 진화할 수 있는 경우에 사용합니다.","w":"all"}],"note":"제공된 횡성 교육원 오리엔테이션의 피난안내도입니다.","imgs":[{"f":"횡성_피난안내도.png","c":"횡성 교육원 2층 피난 동선 · 정문 계단","d":"orientation/hoeng41_evacuation.png"}]},{"h":"13. 우리 교육원의 비전","kind":"all","items":[{"t":"소통과 협업을 통해 생명·건강·복지의 가치를 실천하는 인재를 양성합니다.","w":"all"},{"t":"전문교육을 바탕으로 취업과 일자리 창출을 지원합니다.","w":"all"}]}],"consent":[{"t":"위 오리엔테이션 내용을 안내받고 잘 이해하였습니다.","w":"all"},{"t":"이론·실기·현장실습을 각각 80% 이상 출석하고 현장실습 평가에 합격해야 수료할 수 있음을 확인하였습니다. 실습 면제 승인자를 제외하고 배정된 하루 8시간의 실습에 모두 참석하겠습니다.","w":"all"},{"t":"정해진 수업과 실습 일정에 성실히 참여하고, 부득이한 결석·지각·조퇴·외출은 미리 연락하고 사유서를 제출하겠습니다.","w":"all"},{"t":"교육과 실습에서 알게 된 어르신의 개인정보·사진·건강정보를 외부에 공개하지 않겠습니다.","w":"all"},{"t":"교육 운영을 위해 이름·생년월일·연락처·출결기록이 수집·이용되는 것에 동의합니다.","w":"all"},{"t":"내일배움카드로 교육받는 경우 본인 훈련과정의 출결·지원금 기준도 함께 확인하였습니다.","w":"kb"}],"course":"sw"}};
+  var _course='std', DOC=DOCS.std;
+  var COL='ori_main41';
+  var _req=0, _saving=false;
+  var _st={checked:{},sign:'',prevSign:'',saved:null,loaded:false};
+  var _kb=null;   // 내일배움카드(국비) 여부 : null=아직 선택 안 함 / 1=국비 / 0=일반(자비)
+  var _adm=null, _admMode=false;
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+  function isAdmin(){var a=window.ADMIN_USER; return !!window.SUPER_USER || !!(a&&a.기관명==='고려요양보호사교육원');}
+  function is41(){ var u=window.CURR_USER; if(!u||u.isGuest) return false;
+    return u.기관명==='고려요양보호사교육원' && String(u.기수||'').replace(/[^0-9]/g,'')==='41'; }
+  function canView(){return !!(window.C41&&window.C41.canView());}
+  function db(){ try{ return (window._FB&&_FB.db)?_FB.db:null; }catch(e){ return null; } }
+  function myId(){return window.C41.docId(window.CURR_USER||{});}
+  function signId(){var u=window.CURR_USER||{};return ('main41_41기_'+(u.name||'')+'_'+String(u.birth||'').replace(/[^0-9]/g,'').slice(-6)).replace(/[\\/\.]/g,'_');}
+  function today(){ var d=new Date(); return d.getFullYear()+'년 '+(d.getMonth()+1)+'월 '+d.getDate()+'일'; }
+
+  function secHtml(s){
+    var kb = s.items.length && s.items.every(function(i){return i.w==='kb';});
+    var h='<div class="o41-sec'+(kb?' kb':'')+'"><h3>'+esc(s.h)+'</h3>';
+    s.items.forEach(function(i){
+      var k=(i.w==='kb');
+      var wn=(i.tag==='경고');
+      h+='<div class="o41-li'+(wn?' warn':((k&&!kb)?' kb':''))+'"><span class="dot"></span><div>'+((k&&!kb&&!wn)?'<span class="o41-badge">내일배움카드</span>':'')+i.t+'</div></div>';
+    });
+    (s.imgs||[]).forEach(function(im){
+      h+='<div style="margin:10px 0;text-align:center"><img src="'+im.d+'" style="max-width:100%;border:1px solid #cbd5e1;border-radius:8px">'
+        +'<div style="font-size:16px;color:#475569;margin-top:6px">'+esc(im.c)+'</div></div>';
+    });
+    if(s.note) h+='<div class="o41-note">'+esc(s.note)+'</div>';
+    return h+'</div>';
+  }
+  function consHtml(){
+    var h='<div class="o41-cons"><h3>✅ 확인 및 동의</h3>';
+    if(_st.saved){
+      h+='<div class="o41-done">✔ '+esc((window.CURR_USER||{}).name||'')+' 선생님은 <b>'+esc(_st.saved.date||'')+'</b>에 동의를 완료하셨습니다.<br>내용은 언제든 다시 보실 수 있습니다.</div>';
+    }
+    // ★ 내일배움카드(국비) 여부 — 아닌 분은 국비 항목을 동의하지 않아도 넘어갑니다
+    h+='<div class="o41-kbq"><div class="o41-kbq-t">🪪 내일배움카드(국비)로<br>교육받고 계신가요?</div>'
+      +'<div class="o41-kbq-b">'
+      +'<button class="o41-kbq-btn'+(_kb===1?' on':'')+'" onclick="ori41Kb(1)">예 · 국비(내일배움카드)</button>'
+      +'<button class="o41-kbq-btn'+(_kb===0?' on':'')+'" onclick="ori41Kb(0)">아니요 · 일반(자비)</button>'
+      +'</div>'
+      +(_kb===null
+         ? '<div class="o41-kbq-warn">⬆ 둘 중 하나를 먼저 눌러 주세요.</div>'
+         : (_kb===1 ? '<div class="o41-kbq-n">국비 항목까지 함께 동의해 주세요.</div>'
+                    : '<div class="o41-kbq-n">내일배움카드 항목은 <b>해당 없음</b>으로 처리되어<br>동의하지 않으셔도 됩니다.</div>'))
+      +'</div>';
+    h+='<button class="o41-all'+(allChecked()?' on':'')+'" onclick="ori41All()">'+(allChecked()?'✔ 모두 동의했습니다':'👉 위 내용을 모두 확인했습니다 (한 번에 체크)')+'</button>';
+    var _naKb=0;
+    DOC.consent.forEach(function(c,i){
+      var k=(c.w==='kb');
+      if(k && _kb===0){ _naKb++; return; }          // 일반(자비) 선생님에겐 아예 안 보이고 필수도 아님
+      var na=(k && _kb===null);
+      h+='<label class="o41-ck'+(k?' kb':'')+(na?' na':'')+'"><input type="checkbox" '+(_st.checked[i]?'checked':'')+(na?' disabled':'')+' onchange="ori41Ck('+i+',this.checked)">'
+        +'<span>'+(k?'<span class="o41-badge">내일배움카드</span>':'')+esc(c.t)+'</span></label>';
+    });
+    if(_naKb) h+='<div class="o41-skip">🪪 내일배움카드(국비) 전용 항목 '+_naKb+'개는<br><b>해당 없음</b>으로 넘어갑니다.</div>';
+    h+='<div class="o41-signbox"><h4>✍️ 성명과 서명</h4>';
+    h+='<div style="font-size:20px;color:#0f172a;margin-bottom:10px">성명 : <b>'+esc((window.CURR_USER||{}).name||'')+'</b>'
+      +' &nbsp; 생년월일 : <b>'+esc(String((window.CURR_USER||{}).birth||''))+'</b></div>';
+    var _prev=(_st.prevSign||window.USIGN||'');
+    if(_st.sign){
+      h+='<div style="font-size:17px;color:#166534;margin-bottom:6px">✔ 서명이 들어갔습니다. 아래 「동의하고 저장하기」를 눌러 주세요.</div>'
+        +'<img class="o41-signimg" src="'+_st.sign+'" alt="서명">'
+        +'<div class="o41-btnrow"><button class="o41-btn sec" onclick="ori41Resign()">서명 다시 하기</button></div>';
+    }else if(_prev){
+      _st.sign=_prev;   // ★ 처음 등록한 서명을 자동으로 채운다 (다시 서명할 필요 없음)
+      h+='<div style="font-size:17px;color:#166534;margin-bottom:6px">✔ 처음 등록하신 서명이 자동으로 들어갔습니다. 아래 「동의하고 저장하기」를 눌러 주세요.</div>'
+        +'<img class="o41-signimg" src="'+_prev+'" alt="서명">'
+        +'<div class="o41-btnrow"><button class="o41-btn sec" onclick="ori41NewSign()">서명 다시 등록하기</button></div>';
+    }else{
+      h+='<div style="font-size:18px;color:#b45309;margin-bottom:10px">아직 등록된 서명이 없습니다.<br>아래 버튼을 눌러 <b>한 번만</b> 등록해 주세요. (다음부터 자동으로 들어갑니다)</div>'
+        +'<div class="o41-btnrow"><button class="o41-btn" onclick="ori41NewSign()">✍️ 서명 등록하기</button></div>';
+    }
+    h+='</div>';
+    h+='<div class="o41-btnrow"><button class="o41-btn" onclick="ori41Save()">동의하고 저장하기</button></div>';
+    h+='<div style="text-align:center;font-size:18px;color:#334155;margin-top:14px">'+esc(today())+'<br><b>'+esc((window.CURR_USER||{}).name||'')+'</b> (서명)</div>';
+    return h+'</div>';
+  }
+  // 내가 동의해야 하는 항목 번호들 (국비 전용 항목은 국비 선택자만 포함)
+  function needIdx(){ var out=[]; DOC.consent.forEach(function(c,i){ if(c.w==='kb' && _kb!==1) return; out.push(i); }); return out; }
+  function allChecked(){ if(_kb===null) return false; var n=needIdx(); return n.length>0 && n.every(function(i){ return _st.checked[i]; }); }
+  var _step=0;
+  function totalSteps(){ return DOC.sections.length+1; }
+  function render(){
+    if(!canView())return;
+    var u=window.CURR_USER||{};
+    var h='<div class="o41-head"><h2>'+esc(DOC.title)+'</h2><div class="sub">'+esc(DOC.org)+' · '+esc(DOC.subtitle)+'</div>'
+      +(u.name?('<div class="sub" style="margin-top:6px">👤 <b>'+esc(u.name)+'</b> 선생님</div>'):'')+'</div>';
+    h+='<div class="o41-prog"><i id="ori41Prog" style="width:0%"></i></div><div class="o41-pgtxt" id="ori41PgTxt"></div>';
+    if(isAdmin()) h+='<div class="o41-course noprint">'+Object.keys(DOCS).map(function(k){return '<button class="o41-prt" onclick="ori41Course(\''+k+'\')">'+window.C41.courses[k].name+'</button>';}).join('')+'</div>';
+    if(isAdmin()) h+='<div class="o41-adm" id="ori41Adm">관리자 · 제출 현황을 불러오는 중…</div><button class="o41-prt" onclick="ori41AdminOpen()">41기 동의·서명 관리</button>';
+    DOC.sections.forEach(function(sc,i){ h+='<div class="o41-step" data-i="'+i+'">'+secHtml(sc)+'</div>'; });
+    h+='<div class="o41-step" data-i="'+DOC.sections.length+'">'+consHtml()+'</div>';
+    h+='<div class="o41-nav"><button class="prev" onclick="ori41Step(-1)">◀ 이전</button><button class="next" id="ori41Next" onclick="ori41Step(1)">다음 ▶</button></div>';
+    document.getElementById('ori41Body').innerHTML=h;
+    showStep(_step);
+    if(isAdmin()) loadAdm();
+  }
+  function showStep(i){
+    if(!canView())return;
+    var T=totalSteps();
+    _step=Math.max(0,Math.min(T-1,i));
+    var els=document.querySelectorAll('#ori41Body .o41-step');
+    for(var k=0;k<els.length;k++){ els[k].className='o41-step'+(k===_step?' on':''); }
+    var pr=document.getElementById('ori41Prog'); if(pr) pr.style.width=Math.round((_step+1)/T*100)+'%';
+    var pt=document.getElementById('ori41PgTxt'); if(pt) pt.textContent=(_step+1)+' / '+T+(_step===T-1?' · 마지막':'');
+    var nx=document.getElementById('ori41Next');
+    if(nx){ nx.textContent=(_step===T-1)?'✔ 마지막 장입니다':'다음 ▶'; nx.disabled=(_step===T-1); }
+    document.getElementById('ori41Page').scrollTop=0;
+  }
+  window.ori41Step=function(d){ if(!canView())return; showStep(_step+d); };
+  // ---- 서명 캔버스 ----
+  var _drawing=false,_ctx=null,_cv=null,_dirty=false;
+  function initCanvas(){
+    _cv=document.getElementById('ori41Canv'); if(!_cv) return;
+    var r=_cv.getBoundingClientRect(); _cv.width=r.width*2; _cv.height=r.height*2;
+    _ctx=_cv.getContext('2d'); signatureWhite(_cv,_ctx); _ctx.scale(2,2); _ctx.lineWidth=2.4; _ctx.lineCap='round'; _ctx.strokeStyle='#111'; _dirty=false;
+    function pos(e){ var b=_cv.getBoundingClientRect(); var p=(e.touches&&e.touches[0])||e; return {x:p.clientX-b.left,y:p.clientY-b.top}; }
+    function down(e){ _drawing=true; _dirty=true; var p=pos(e); _ctx.beginPath(); _ctx.moveTo(p.x,p.y); e.preventDefault(); }
+    function move(e){ if(!_drawing) return; var p=pos(e); _ctx.lineTo(p.x,p.y); _ctx.stroke(); e.preventDefault(); }
+    function up(){ _drawing=false; }
+    _cv.addEventListener('mousedown',down); _cv.addEventListener('mousemove',move);
+    window.addEventListener('mouseup',up);
+    _cv.addEventListener('touchstart',down,{passive:false}); _cv.addEventListener('touchmove',move,{passive:false});
+    _cv.addEventListener('touchend',up);
+  }
+  window.ori41ClearSign=function(){ if(!canView())return; if(_ctx&&_cv){ signatureWhite(_cv,_ctx); _dirty=false; } };
+  window.ori41UsePrev=function(){ if(!canView())return;
+    var pv=_st.prevSign||window.USIGN||'';   // 처음 등록한 서명도 그대로 사용
+    if(!pv){ alert('저장된 서명이 없습니다.'); return; }
+    _st.prevSign=pv; _st.sign=pv; var k=_step; render(); showStep(k);
+  };
+  window.ori41NewSign=function(){ if(!canView())return;
+    if(!window.usignAsk){ alert('서명 기능을 불러오지 못했습니다.'); return; }
+    window.usignAsk(function(sg){ if(sg){ _st.sign=sg; _st.prevSign=sg; } var k=_step; render(); showStep(k); });
+  };
+  window.ori41Resign=function(){ if(!canView())return; _st.sign=''; _st.prevSign=''; if(window.ori41NewSign){ window.ori41NewSign(); return; } var k=_step; render(); showStep(k); };
+  window.ori41Ck=function(i,v){ if(!canView())return; _st.checked[i]=v; var b=document.querySelector('.o41-all');
+    if(b){ b.className='o41-all'+(allChecked()?' on':''); b.textContent=allChecked()?'✔ 모두 동의했습니다':'👉 위 내용을 모두 확인했습니다 (한 번에 체크)'; } };
+  window.ori41All=function(){ if(!canView())return;
+    if(_kb===null){ alert('먼저 「내일배움카드(국비)로 교육받으시나요?」를 선택해 주세요.'); return; }
+    var on=!allChecked(); needIdx().forEach(function(i){ _st.checked[i]=on; });
+    if(_kb!==1) DOC.consent.forEach(function(c,i){ if(c.w==='kb') _st.checked[i]=false; });
+    var k=_step; render(); showStep(k); };
+  window.ori41Kb=function(v){ if(!canView())return; _kb=v?1:0;
+    if(_kb!==1) DOC.consent.forEach(function(c,i){ if(c.w==='kb') _st.checked[i]=false; });
+    try{ localStorage.setItem('cbt_ori_main41_kb_'+myId(), String(_kb)); }catch(e){}
+    var k=_step; render(); showStep(k); };
+  window.ori41Save=function(){ if(!canView()||!is41()||!myId()||_saving||_course!==window.C41.course())return;
+    if(_kb===null){ alert('먼저 「내일배움카드(국비)로 교육받고 계신가요?」를\n예 / 아니요 중에서 선택해 주세요.'); return; }
+    if(!allChecked()){ alert('동의 항목을 모두 확인하고 체크해 주세요.'); return; }
+    var sign=_st.sign;
+    if(!sign){
+      if(!_dirty||!_cv){ alert('서명을 해주세요.'); return; }
+      sign=_cv.toDataURL('image/png');
+    }
+    var u=window.CURR_USER||{}; var d=db();
+    if(!d){ alert('인터넷 연결이 필요합니다.'); return; }
+    var rec={기수:'41기',성명:u.name||'',생년월일:String(u.birth||'').replace(/[^0-9]/g,'').slice(-6),
+      course:_course,교육과정:window.C41.courses[_course].name,기관명:u.기관명||'',동의:true,date:today(),ts:new Date().toISOString(),sign:sign,
+      국비:(_kb===1),구분:(_kb===1?'국비(내일배움카드)':'일반(자비)'),
+      items:needIdx().map(function(i){ return DOC.consent[i].t; })};
+    var ticket=_req, saveId=myId(); _saving=true;
+    d.collection(COL).doc(saveId).set(rec,{merge:true}).then(function(){
+      if(ticket!==_req)return; _saving=false;
+      _st.sign=sign; _st.saved=rec;
+      try{ d.collection('usersign').doc(signId()).set({sign:sign,성명:rec.성명,생년월일:rec.생년월일,기수:'41기',기관명:'고려요양보호사교육원'},{merge:true}); }catch(e){}
+      alert('동의가 저장되었습니다. 감사합니다!');
+      var k=_step; render(); showStep(k);
+    }).catch(function(e){ if(ticket!==_req)return; _saving=false; alert('저장 실패: '+(e.message||e)); });
+  };
+  function loadSaved(cb){
+    var ticket=_req;
+    var d=db(); if(!d){ cb(); return; }
+    if(isAdmin()){cb();return;}
+    var u=window.CURR_USER||{};
+    var b6=String(u.birth||'').replace(/[^0-9]/g,'').slice(-6);
+    d.collection(COL).doc(myId()).get().then(function(s){
+      if(ticket!==_req||!canView())return;
+      if(s.exists && (s.data()||{}).기관명==='고려요양보호사교육원' && String((s.data()||{}).기수||'').replace(/[^0-9]/g,'')==='41' && ((s.data()||{}).course||'std')===_course){ var v=s.data(); _st.saved=v; _st.sign=v.sign||'';
+        if(typeof v['국비']==='boolean') _kb=v['국비']?1:0;
+        DOC.consent.forEach(function(c,i){ if(c.w==='kb' && _kb!==1) return; _st.checked[i]=true; });
+        cb(); return; }
+      // 이전에 저장해 둔 서명 찾기 : usersign → 고려41기 사유서(sayu_main41)
+      return d.collection('usersign').doc(signId()).get().then(function(s2){ if(ticket!==_req||!canView())return;
+        if(s2.exists && (s2.data()||{}).sign){ _st.prevSign=s2.data().sign; cb(); return; }
+        return d.collection('sayu_main41').where('성명','==',u.name||'').get().then(function(qs){ if(ticket!==_req||!canView())return;
+          var pick='';
+          qs.forEach(function(doc){ var v=doc.data()||{};
+            var vb=String(v.생년월일||'').replace(/[^0-9]/g,'').slice(-6);
+            if(v.기관명==='고려요양보호사교육원' && String(v.기수||'').replace(/[^0-9]/g,'')==='41' && v.sign && b6 && vb===b6) pick=v.sign;
+          });
+          if(pick) _st.prevSign=pick;
+          cb();
+        }).catch(function(){ cb(); });
+      });
+    }).catch(function(){ cb(); });
+  }
+  function loadAdm(){ if(!isAdmin())return;var ticket=_req;
+    var d=db(); var box=document.getElementById('ori41Adm'); if(!d||!box) return;
+    Promise.all([
+      d.collection(COL).get().catch(function(){return {forEach:function(){}};}),
+      d.collection('users').get().catch(function(){return {forEach:function(){}};})
+    ]).then(function(res){
+      if(ticket!==_req||!isAdmin()||!canView())return;
+      var enrollment={};res[1].forEach(function(doc){var u=doc.data()||{};if(u.기관명==='고려요양보호사교육원'&&String(u.기수||'').replace(/[^0-9]/g,'')==='41'&&u.role!=='admin'&&u.role!=='super')enrollment[(u.name||'')+'|'+String(u.birth||'').replace(/[^0-9]/g,'').slice(-6)]=window.C41.course(u);});
+      var subs={}, rows=[];
+      res[0].forEach(function(doc){ var v=doc.data()||{};
+        if(v.기관명!=='고려요양보호사교육원'||String(v.기수||'').replace(/[^0-9]/g,'')!=='41')return;
+        var k=(v.성명||'')+'|'+String(v.생년월일||'').replace(/[^0-9]/g,'').slice(-6);
+        if(enrollment[k]===v.course&&(v.course||'std')===_course)subs[k]=v; });
+      res[1].forEach(function(doc){ var u=doc.data()||{};
+        var g=String(u.기수||'').replace(/[^0-9]/g,'');
+        if(u.기관명!=='고려요양보호사교육원'||g!=='41'||window.C41.course(u)!==_course) return;
+        if(u.role==='admin'||u.role==='super') return;
+        var b6=String(u.birth||'').replace(/[^0-9]/g,'').slice(-6);
+        rows.push({name:u.name||'',birth:b6,sub:subs[(u.name||'')+'|'+b6]||null});
+      });
+      // 명단에 없는 제출자도 포함
+      Object.keys(subs).forEach(function(k){
+        var p=k.split('|');
+        if(!rows.some(function(r){ return r.name===p[0]&&r.birth===p[1]; }))
+          rows.push({name:p[0],birth:p[1],sub:subs[k]});
+      });
+      rows.sort(function(a,b){ if(!!a.sub!==!!b.sub) return a.sub?1:-1; return String(a.name).localeCompare(String(b.name)); });
+      var done=rows.filter(function(r){return !!r.sub;}).length, yet=rows.length-done;
+      var h='<div class="noprint" style="margin-bottom:8px"><b style="font-size:18px">관리자 · 오리엔테이션 동의 현황</b>'
+        +' <button class="o41-prt" style="float:right;background:#1d4ed8;color:#fff" onclick="ori41PrintAdm()">🖨 서명 명단 인쇄</button></div>';
+      h+='<div style="font-size:17px;margin-bottom:8px">41기 <b>'+rows.length+'명</b> · 서명완료 <b style="color:#166534">'+done+'명</b>'
+        +' · <b style="color:#b91c1c">미제출 '+yet+'명</b></div>';
+      h+='<div style="font-weight:800;font-size:15px;margin:10px 0 6px">오리엔테이션 서명 명단 (41기)</div>';
+      h+='<table><tr><th style="width:7%">번호</th><th style="width:16%">성명</th><th style="width:16%">생년월일</th><th style="width:15%">동의</th><th style="width:22%">동의일</th><th>서명</th></tr>';
+      rows.forEach(function(r,i){
+        h+='<tr'+(r.sub?'':' style="background:#fff1f2"')+'>'
+          +'<td>'+(i+1)+'</td><td><b>'+esc(r.name)+'</b></td><td>'+esc(r.birth)+'</td>'
+          +'<td>'+(r.sub?'<b style="color:#166534">✔ 완료</b>':'<b style="color:#b91c1c">미제출</b>')+'</td>'
+          +'<td>'+esc(r.sub?(r.sub.date||''):'')+'</td>'
+          +'<td>'+(r.sub&&r.sub.sign?'<img src="'+r.sub.sign+'" style="height:36px">':'')+'</td></tr>';
+      });
+      box.innerHTML=h+'</table>';
+    }).catch(function(){ box.textContent='현황을 불러오지 못했습니다.'; });
+  }
+  window.ori41Print=function(){ if(!canView())return; try{ document.body.classList.add('ori41Printing'); document.body.classList.remove('ori41PrintAdm'); window.print(); }catch(e){ alert('인쇄를 시작할 수 없습니다.'); } };
+  window.ori41PrintAdm=function(){ if(!isAdmin())return;
+    try{ document.body.classList.add('ori41Printing','ori41PrintAdm'); window.print();
+      setTimeout(function(){ document.body.classList.remove('ori41PrintAdm'); },800);
+    }catch(e){ alert('인쇄를 시작할 수 없습니다.'); }
+  };
+  window.ori41Course=function(k){if(!isAdmin()||!canView()||!DOCS[k]||!window.C41.allowedCourse(k))return;window.ori41Open(k);};
+  window.ori41Open=function(k){if(!canView())return;if(!isAdmin()&&window.C41.resolveCourse){var request=++_req,student=window.CURR_USER,id=myId();window.C41.resolveCourse(student).then(function(q){if(request===_req&&canView()&&myId()===id)openResolved(q);}).catch(function(){if(request===_req&&canView())alert('교육과정을 확인하지 못했습니다. 다시 열어 주세요.');});return;}openResolved(k);};
+  function openResolved(k){ if(!canView())return;
+    _course=DOCS[k]&&window.C41.allowedCourse(k)?k:window.C41.course();DOC=DOCS[_course]||DOCS.std;
+    var ticket=++_req; _saving=false;
+    document.getElementById('ori41Page').classList.remove('hidden');
+    try{ history.pushState({ori41Page:1},'','#ori41Page'); }catch(e){}
+    document.getElementById('ori41Body').innerHTML='<div class="o41-head">불러오는 중…</div>';
+    _step=0; _st={checked:{},sign:'',prevSign:'',saved:null,loaded:false};
+    _kb=null; try{ var _sk=localStorage.getItem('cbt_ori_main41_kb_'+myId()); if(_sk==='1'||_sk==='0') _kb=(_sk==='1')?1:0; }catch(e){}
+    try{ if(!isAdmin()&&window.usignLoad) window.usignLoad(function(sg){ if(ticket!==_req||!canView())return; if(sg && !_st.prevSign){ _st.prevSign=sg; if(!_st.sign && document.getElementById('ori41Body') && document.getElementById('ori41Body').children.length){ var _k=_step; render(); showStep(_k); } } }); }catch(e){}
+    loadSaved(function(){ if(ticket===_req&&canView())render(); });
+  };
+  window.ori41Close=function(){ ++_req; _saving=false;
+    var el=document.getElementById('ori41Page'); if(el) el.classList.add('hidden');
+    if(typeof showModeSelect==='function') showModeSelect();
+  };
+  window.ori41EnsureCard=function(){ if(!canView()){document.getElementById('ori41Page').classList.add('hidden');document.getElementById('ori41Body').innerHTML='';++_req;} if(!isAdmin()){var adm=document.getElementById('ori41Admin');if(adm)adm.classList.add('hidden');}
+    var cards=document.querySelector('#modeSelect .mode-cards'); if(!cards) return;
+    var ex=cards.querySelector('.mode-card.ori41');
+    if(canView()){ if(!ex){ var d=document.createElement('div'); d.className='mode-card ori41';
+      d.setAttribute('onclick','ori41Open()');
+      d.innerHTML='<div class="mode-card-icon">📋</div><div class="mode-card-title">오리엔테이션</div><div class="mode-card-sub">교육 안내 · 동의서<br>(41기)</div>';
+      cards.appendChild(d);} }
+    else if(ex){ ex.remove(); }
+  };
+  // ══════ 📋 관리자 · 오리엔테이션 제출 현황 (초기관리자 / 기관관리자) ══════
+  var _oaF='all', _oaRows=null;
+  function oaGisu(){ return String(DOC.gisu||'41').replace(/[^0-9]/g,'')||'41'; }
+  function oaEnsure(){
+    if(document.getElementById('ori41Admin')) return;
+    var st=document.createElement('style');
+    st.textContent=[
+      '#ori41Admin{position:fixed;inset:0;background:#f4f6fa;z-index:9300;overflow-y:auto;-webkit-overflow-scrolling:touch;color-scheme:light}',
+      '#ori41Admin.hidden{display:none}',
+      '.oa41-top{position:sticky;top:0;background:#1d4ed8;color:#fff;display:flex;align-items:center;gap:7px;padding:12px;z-index:5;box-shadow:0 2px 10px rgba(0,0,0,.15)}',
+      '.oa41-top button{border:0;border-radius:9px;padding:9px 11px;font-size:14px;font-weight:800;cursor:pointer}',
+      '.oa41-back{background:rgba(255,255,255,.18);color:#fff}',
+      '.oa41-act{background:#fff;color:#1d4ed8}',
+      '.oa41-ttl{flex:1;font-size:18px;font-weight:800;text-align:center}',
+      '.oa41-wrap{padding:14px 12px 40px;max-width:900px;margin:0 auto}',
+      '.oa41-empty{background:#fff;border-radius:12px;padding:26px;text-align:center;font-size:17px;color:#64748b}',
+      '.oa41-sum{display:flex;gap:9px;margin-bottom:12px}',
+      '.oa41-box{flex:1;background:#fff;border-radius:12px;padding:14px 8px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06)}',
+      '.oa41-box .n{font-size:30px;font-weight:800;line-height:1.15}',
+      '.oa41-box .l{font-size:14px;color:#64748b;font-weight:700;margin-top:4px}',
+      '.oa41-box.t .n{color:#1e293b}.oa41-box.d .n{color:#166534}.oa41-box.y .n{color:#b91c1c}',
+      '.oa41-yet{background:#fff1f2;border:2px solid #fecdd3;border-radius:12px;padding:14px;margin-bottom:12px}',
+      '.oa41-yet h4{margin:0 0 9px;font-size:17px;color:#b91c1c}',
+      '.oa41-chip{display:inline-block;background:#fff;border:1.5px solid #fda4af;color:#9f1239;border-radius:999px;padding:8px 13px;margin:0 6px 7px 0;font-size:17px;font-weight:800}',
+      '.oa41-chip small{color:#94a3b8;font-weight:700;margin-left:5px;font-size:12.5px}',
+      '.oa41-tabs{display:flex;gap:8px;margin-bottom:10px}',
+      '.oa41-tab{flex:1;background:#fff;border:1px solid #d7e0ea;border-radius:10px;padding:12px;font-size:15px;font-weight:800;color:#475569;text-align:center;cursor:pointer}',
+      '.oa41-tab.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff}',
+      '.oa41-tbl{background:#fff;border-radius:12px;padding:11px;box-shadow:0 2px 8px rgba(0,0,0,.06);overflow-x:auto}',
+      '.oa41-tbl table{width:100%;border-collapse:collapse;font-size:14px}',
+      '.oa41-tbl th,.oa41-tbl td{border:1px solid #e2e8f0;padding:8px 5px;text-align:center}',
+      '.oa41-tbl th{background:#f1f5f9;font-size:13px}',
+      '.oa41-tbl tr.yet{background:#fff1f2}',
+      '.oa41-tbl img{height:38px;background:#fff}',
+      '@media print{',
+      ' body.ori41AdmPrint>*{display:none!important}',
+      ' body.ori41AdmPrint #ori41Page,body.ori41AdmPrint #ori{display:none!important}',
+      ' body.ori41AdmPrint #ori41Admin{display:block!important;position:static!important;overflow:visible!important;background:#fff!important}',
+      ' body.ori41AdmPrint .oa41-top,body.ori41AdmPrint .oa41-tabs,body.ori41AdmPrint .noprint{display:none!important}',
+      ' body.ori41AdmPrint .oa41-wrap{max-width:none;padding:0}',
+      ' body.ori41AdmPrint .oa41-sum,body.ori41AdmPrint .oa41-yet,body.ori41AdmPrint .oa41-tbl{box-shadow:none;padding:0;margin-bottom:10px}',
+      ' body.ori41AdmPrint .oa41-tbl table{font-size:11pt}',
+      ' @page{size:A4;margin:12mm}',
+      '}'].join('');
+    document.head.appendChild(st);
+    var w=document.createElement('div'); w.id='ori41Admin'; w.className='hidden';
+    w.innerHTML='<div class="oa41-top"><button class="oa41-back" onclick="ori41AdminClose()">◀ 닫기</button>'
+      +'<div class="oa41-ttl">📋 오리엔테이션 관리</div>'
+      +'<button class="oa41-act" onclick="ori41AdminReload()">🔄</button>'
+      +'<button class="oa41-act" onclick="ori41AdminPrint()">🖨 인쇄</button></div>'
+      +'<div class="oa41-wrap" id="ori41AdmBody"></div>';
+    document.body.appendChild(w);
+  }
+  function oaLoad(){ if(!isAdmin())return;var ticket=_req;
+    var box=document.getElementById('ori41AdmBody'); if(!box) return;
+    var d=db();
+    if(!d){ box.innerHTML='<div class="oa41-empty">⚠️ 인터넷(서버) 연결이 필요합니다.</div>'; return; }
+    box.innerHTML='<div class="oa41-empty">⏳ 제출 현황을 불러오는 중…</div>';
+    var G=oaGisu();
+    Promise.all([
+      d.collection(COL).get().catch(function(){ return {forEach:function(){}}; }),
+      d.collection('users').get().catch(function(){ return {forEach:function(){}}; })
+    ]).then(function(res){
+      if(ticket!==_req||!isAdmin()||!canView())return;
+      var enrollment={};res[1].forEach(function(doc){var u=doc.data()||{};if(u.기관명==='고려요양보호사교육원'&&String(u.기수||'').replace(/[^0-9]/g,'')==='41'&&u.role!=='admin'&&u.role!=='super')enrollment[(u.name||'')+'|'+String(u.birth||'').replace(/[^0-9]/g,'').slice(-6)]=window.C41.course(u);});
+      var subs={}, rows=[];
+      res[0].forEach(function(doc){ var v=doc.data()||{};
+        if(v.기관명!=='고려요양보호사교육원'||String(v.기수||'').replace(/[^0-9]/g,'')!=='41')return;
+        var ekey=(v['성명']||'')+'|'+String(v['생년월일']||'').replace(/[^0-9]/g,'').slice(-6);if(enrollment[ekey]!==v.course)return;
+        subs[(v['성명']||'')+'|'+String(v['생년월일']||'').replace(/[^0-9]/g,'').slice(-6)]=v; });
+      res[1].forEach(function(doc){ var u=doc.data()||{};
+        if(u.기관명!=='고려요양보호사교육원'||String(u['기수']||'').replace(/[^0-9]/g,'')!==G) return;
+        if(u.role==='admin'||u.role==='super') return;
+        var b6=String(u.birth||'').replace(/[^0-9]/g,'').slice(-6);
+        rows.push({name:u.name||'',birth:b6,sub:subs[(u.name||'')+'|'+b6]||null}); });
+      Object.keys(subs).forEach(function(k){ var q=k.split('|');
+        if(!rows.some(function(r){ return r.name===q[0]&&r.birth===q[1]; })) rows.push({name:q[0],birth:q[1],sub:subs[k],extra:true}); });
+      rows.sort(function(a,b){ if(!!a.sub!==!!b.sub) return a.sub?1:-1; return String(a.name).localeCompare(String(b.name)); });
+      _oaRows=rows; oaRender();
+    }).catch(function(e){ box.innerHTML='<div class="oa41-empty">⚠️ 불러오지 못했습니다.<br>'+esc(e.message||e)+'</div>'; });
+  }
+  function oaRender(){ if(!isAdmin())return;
+    var box=document.getElementById('ori41AdmBody'); if(!box) return;
+    var rows=_oaRows||[], G=oaGisu();
+    var done=rows.filter(function(r){ return !!r.sub; }), yet=rows.filter(function(r){ return !r.sub; });
+    var h='<div class="oa41-sum"><div class="oa41-box t"><div class="n">'+rows.length+'</div><div class="l">'+G+'기 전체</div></div>'
+      +'<div class="oa41-box d"><div class="n">'+done.length+'</div><div class="l">작성 완료</div></div>'
+      +'<div class="oa41-box y"><div class="n">'+yet.length+'</div><div class="l">아직 안 함</div></div></div>';
+    if(!rows.length){ box.innerHTML=h+'<div class="oa41-empty">'+G+'기 등록된 학생이 없습니다.</div>'; return; }
+    if(yet.length){
+      h+='<div class="oa41-yet"><h4>❗ 오리엔테이션을 아직 안 하신 분 ('+yet.length+'명)</h4>';
+      yet.forEach(function(r){ h+='<span class="oa41-chip">'+esc(r.name)+'<small>'+esc(r.birth)+'</small></span>'; });
+      h+='</div>';
+    } else {
+      h+='<div class="oa41-yet" style="background:#f0fdf4;border-color:#86efac"><h4 style="color:#166534">✅ '+G+'기 전원이 오리엔테이션 동의를 마쳤습니다.</h4></div>';
+    }
+    h+='<div class="oa41-tabs noprint">'
+      +'<div class="oa41-tab'+(_oaF==='all'?' on':'')+'" onclick="ori41AdminFilter(\'all\')">전체 '+rows.length+'</div>'
+      +'<div class="oa41-tab'+(_oaF==='yet'?' on':'')+'" onclick="ori41AdminFilter(\'yet\')">미제출 '+yet.length+'</div>'
+      +'<div class="oa41-tab'+(_oaF==='done'?' on':'')+'" onclick="ori41AdminFilter(\'done\')">완료 '+done.length+'</div></div>';
+    var list=(_oaF==='yet')?yet:((_oaF==='done')?done:rows);
+    h+='<div class="oa41-tbl"><div style="font-weight:800;font-size:15px;margin:3px 2px 9px">오리엔테이션 동의·서명 명단 ('+G+'기)</div>';
+    if(!list.length){ box.innerHTML=h+'<div class="oa41-empty">해당하는 분이 없습니다.</div></div>'; return; }
+    h+='<table><tr><th style="width:6%">번호</th><th style="width:14%">성명</th><th style="width:14%">생년월일</th><th style="width:13%">동의</th><th style="width:14%">구분</th><th style="width:19%">동의한 날</th><th>서명</th></tr>';
+    list.forEach(function(r,i){
+      var gb = r.sub ? (r.sub['구분'] || (r.sub['국비']===true?'국비(내일배움카드)':(r.sub['국비']===false?'일반(자비)':'-'))) : '-';
+      var gbc = (String(gb).indexOf('국비')===0) ? '#b45309' : '#475569';
+      h+='<tr class="'+(r.sub?'':'yet')+'"><td>'+(i+1)+'</td><td><b>'+esc(r.name)+'</b></td><td>'+esc(r.birth)+'</td>'
+        +'<td>'+(r.sub?'<b style="color:#166534">✔ 완료</b>':'<b style="color:#b91c1c">미제출</b>')+'</td>'
+        +'<td style="color:'+gbc+';font-weight:700">'+esc(gb)+'</td>'
+        +'<td>'+esc(r.sub?(r.sub.date||''):'')+'</td>'
+        +'<td>'+(r.sub&&r.sub.sign?'<img src="'+r.sub.sign+'" alt="서명">':'')+'</td></tr>';
+    });
+    box.innerHTML=h+'</table></div>';
+  }
+  window.ori41AdminFilter=function(f){ if(!isAdmin())return; _oaF=f; oaRender(); };
+  window.ori41AdminReload=function(){ if(!isAdmin())return; oaLoad(); };
+  window.ori41AdminPrint=function(){ if(!isAdmin())return; try{ document.body.classList.add('ori41AdmPrint'); window.print();
+    setTimeout(function(){ document.body.classList.remove('ori41AdmPrint'); },800); }catch(e){ alert('인쇄를 시작할 수 없습니다.'); } };
+  window._isOri41AdminOpen=function(){ var el=document.getElementById('ori41Admin'); return !!(el && !el.classList.contains('hidden')); };
+  window.ori41AdminOpen=function(){
+    if(!isAdmin()){ alert('관리자만 이용할 수 있습니다.'); return; }
+    oaEnsure(); _oaF='all';
+    var el=document.getElementById('ori41Admin'); if(el) el.classList.remove('hidden');
+    try{ history.pushState({ori41ad:1},'','#ori41Admin'); }catch(e){}
+    oaLoad();
+  };
+  window.ori41AdminClose=function(){ var el=document.getElementById('ori41Admin'); if(el) el.classList.add('hidden'); };
+  window.addEventListener('afterprint',function(){document.body.classList.remove('ori41Printing','ori41PrintAdm');});
+  setInterval(function(){ try{ var ms=document.getElementById('modeSelect'); if(ms && !ms.classList.contains('hidden')) window.ori41EnsureCard(); }catch(e){} }, 1500);
+})();
+</script>
+<style>
+#ori41Page{color-scheme:light}
+#ori41Page .o41-signimg,#ori41Page .o41-canv{background:#fff!important;color-scheme:light}
+@media print{body.ori41Printing #ori{display:none!important}}
+</style>
+<script>(function(){setInterval(function(){var a=window.ADMIN_USER,main=!!window.SUPER_USER||!!(a&&a['기관명']==='고려요양보호사교육원');document.querySelectorAll('[data-main41-admin]').forEach(function(b){b.style.display=main?'':'none';});},800);})();</script>
 
 </body>
 </html>
