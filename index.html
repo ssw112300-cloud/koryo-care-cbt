@@ -1133,6 +1133,404 @@ function safeListKeys(){
   try{ return Object.keys(localStorage); }catch(e){ return []; }
 }
 
+/* Student evidence retention. This module never reads or writes attendance/signature collections. */
+(function(root, factory){
+  'use strict';
+  if(typeof module==='object'&&module.exports)module.exports=factory;
+  if(root&&root.document){
+    root.CBT_RECORDS=factory({
+      getDb:function(){return root._FB&&root._FB.db;},
+      ready:function(){return root._FB&&root._FB.authReady;}
+    });
+  }
+})(typeof window!=='undefined'?window:globalThis,function createRecordStore(options){
+  'use strict';
+  options=options||{};
+  var COLLECTION='student_records';
+  function fail(message){throw new Error(message);}
+  function plain(value){return !!value&&Object.getPrototypeOf(value)===Object.prototype;}
+  // Keep Firestore Timestamp/GeoPoint/DocumentReference values intact; JSON cloning changes them.
+  function copy(value){
+    if(Array.isArray(value))return value.map(copy);
+    if(plain(value)){var out={};Object.keys(value).forEach(function(k){out[k]=copy(value[k]);});return out;}
+    return value;
+  }
+  function empty(value){
+    return value===null||value===undefined||(typeof value==='string'&&!value.trim())||
+      (Array.isArray(value)&&!value.length)||(plain(value)&&!Object.keys(value).length);
+  }
+  // Registration must not erase previously stored personal data with empty form cells.
+  function nonEmptyMerge(base,patch){
+    var out=plain(base)?copy(base):{};
+    Object.keys(patch||{}).forEach(function(k){
+      var value=patch[k];if(empty(value))return;
+      out[k]=plain(value)&&plain(out[k])?nonEmptyMerge(out[k],value):copy(value);
+    });return out;
+  }
+  function identity(user){
+    user=user||{};
+    var inst=String(user['기관명']||'').trim(),cohort=String(user['기수']||'').replace(/\D/g,'').replace(/^0+(?=\d)/,''),
+      name=String(user.name||'').trim(),birth=String(user.birth||'').replace(/\D/g,'');
+    if(birth.length===8)birth=birth.slice(2);
+    if(!inst||!cohort||!name||!/^\d{6}$/.test(birth))fail('기관·기수·이름·생년월일을 확인해 주세요.');
+    return {'기관명':inst,'기수':cohort,name:name,birth:birth};
+  }
+  function key(user){var id=identity(user);return encodeURIComponent(JSON.stringify([id['기관명'],id['기수'],id.name,id.birth]));}
+  function same(left,right){return key(left)===key(right);}
+  function userDocId(user){
+    // Existing callers may hold a legacy cohort spelling. Deletion must use its actual ID.
+    return [user['기관명']||'',user['기수']||'',user.name||'',user.birth||''].join('__').replace(/[\/\.]/g,'_');
+  }
+  function assertUser(user,wanted){if(!same(user,wanted))fail('다른 기관·기수의 회원 기록은 연결할 수 없습니다.');}
+  function assertRecord(record,wanted){
+    if(!record)return;
+    if(!record.identity)fail('보존 기록의 식별정보가 없어 작업을 중단했습니다.');
+    assertUser(record.identity,wanted);
+    if(record.profile)assertUser(record.profile,wanted);
+  }
+  function timeValue(value){
+    if(typeof value==='number'&&Number.isFinite(value))return value;
+    if(value&&typeof value.toMillis==='function')return value.toMillis();
+    if(value instanceof Date)return value.getTime();
+    return null;
+  }
+  function originalDate(record,user,now){
+    var values=[record&&record.originalEnrollmentAt,user&&user.originalEnrollmentAt,user&&user.createdAt,
+      record&&record.profile&&record.profile.originalEnrollmentAt,record&&record.profile&&record.profile.createdAt],best;
+    values.forEach(function(value){
+      if(timeValue(value)===null)return;
+      if(best===undefined||timeValue(value)<timeValue(best))best=value;
+    });return best===undefined?now:best;
+  }
+  function meaningfulConsent(value){
+    return plain(value)&&Object.keys(value).some(function(k){return !empty(value[k]);});
+  }
+  function signedConsent(value){return meaningfulConsent(value)&&value.agreed===true&&typeof value.signature==='string'&&!!value.signature.trim();}
+  function actualConsent(record,user){
+    var current=user&&user.consent,saved=record&&record.consent,profile=record&&record.profile&&record.profile.consent;
+    // A blank/unsigned current value cannot displace a real retained agreement.
+    if(signedConsent(current))return copy(current);
+    if(signedConsent(saved))return copy(saved);
+    if(signedConsent(profile))return copy(profile);
+    if(meaningfulConsent(current))return copy(current);
+    if(meaningfulConsent(saved))return copy(saved);
+    if(meaningfulConsent(profile))return copy(profile);
+    return undefined;
+  }
+  function comparable(value){
+    if(value&&typeof value.toMillis==='function')return {__firestoreTimestampMillis:value.toMillis()};
+    if(value instanceof Date)return {__dateMillis:value.getTime()};
+    if(Array.isArray(value))return value.map(comparable);
+    if(plain(value)){var out={};Object.keys(value).sort().forEach(function(k){out[k]=comparable(value[k]);});return out;}
+    return value;
+  }
+  function equal(a,b){return JSON.stringify(comparable(a))===JSON.stringify(comparable(b));}
+  function addConsentHistory(record,consent,source,now){
+    if(!meaningfulConsent(consent))return;
+    if(!record.consentHistory.some(function(item){return equal(item.consent,consent);})){
+      record.consentHistory.push({consent:copy(consent),recordedAt:now,source:source});
+    }
+  }
+  function buildRecord(previous,user,wanted,now){
+    assertRecord(previous,wanted);if(user)assertUser(user,wanted);
+    var record=copy(previous||{});
+    record.schemaVersion=1;record.identity=identity(wanted);record['기관명']=record.identity['기관명'];
+    record.profile=nonEmptyMerge(previous&&previous.profile,user||{});
+    record.originalEnrollmentAt=originalDate(previous,user,now);
+    record.profile.originalEnrollmentAt=record.originalEnrollmentAt;
+    record.consentHistory=Array.isArray(record.consentHistory)?record.consentHistory.slice():[];
+    record.lifecycle=Array.isArray(record.lifecycle)?record.lifecycle.slice():[];
+    // Preserve every distinct server-side consent before choosing the current original.
+    addConsentHistory(record,previous&&previous.consent,'student_records',now);
+    addConsentHistory(record,previous&&previous.profile&&previous.profile.consent,'student_records.profile',now);
+    addConsentHistory(record,user&&user.consent,'users',now);
+    var consent=actualConsent(previous,user);
+    if(consent!==undefined){record.consent=copy(consent);record.profile.consent=copy(consent);}
+    else{delete record.consent;delete record.profile.consent;}
+    record.retainedAt=previous&&previous.retainedAt!==undefined?previous.retainedAt:now;
+    return record;
+  }
+  function event(record,type,reason,sourceDocId,at,actor){
+    var item={type:type,reason:reason===undefined?'':String(reason),sourceDocId:sourceDocId,at:at};
+    if(actor!==undefined)item.actor=copy(actor);
+    record.lifecycle.push(item);record.updatedAt=at;record.lastEvent=copy(item);
+  }
+  async function database(){
+    if(typeof options.ready==='function')await options.ready();else if(options.ready)await options.ready;
+    var db=options.db||(typeof options.getDb==='function'&&options.getDb());
+    if(!db||typeof db.runTransaction!=='function')fail('보존 저장소에 연결할 수 없습니다. 작업을 중단했습니다.');
+    return db;
+  }
+  function now(){var value=typeof options.now==='function'?options.now():Date.now();if(!Number.isFinite(value))fail('저장 시각을 확인할 수 없습니다.');return value;}
+  async function archiveAndDelete(user,opts){
+    opts=opts||{};var wanted=identity(user),recordKey=key(wanted),db=await database(),at=now(),
+      sourceDocId=opts.docId||userDocId(user),userRef=db.collection('users').doc(sourceDocId),recordRef=db.collection(COLLECTION).doc(recordKey);
+    if(String(sourceDocId).indexOf('/')>=0)fail('회원 문서 식별자를 확인해 주세요.');
+    return db.runTransaction(async function(tx){
+      // All reads precede every write. Retention failure therefore prevents account deletion.
+      var userSnap=await tx.get(userRef),recordSnap=await tx.get(recordRef),previous=recordSnap.exists?recordSnap.data():null;
+      assertRecord(previous,wanted);
+      if(!userSnap.exists)return {deleted:false,key:recordKey,record:previous?copy(previous):null};
+      var current=userSnap.data();assertUser(current,wanted);
+      if(opts.expiresBefore!==undefined){
+        var cutoff=timeValue(opts.expiresBefore),created=timeValue(current.createdAt);
+        if(cutoff===null)fail('만료 기준 시각을 확인해 주세요.');
+        // The bootstrap may have read an expired account just before an administrator renewed it.
+        if(created===null||created>cutoff)return {deleted:false,reason:'renewed',key:recordKey,record:previous?copy(previous):null};
+      }
+      var record=buildRecord(previous,current,wanted,at);
+      record.accountState='deleted';event(record,'account-delete',opts.reason||'manual',sourceDocId,at,opts.actor);
+      tx.set(recordRef,record);tx.delete(userRef);
+      return {deleted:true,key:recordKey,record:copy(record)};
+    });
+  }
+  async function enroll(user){
+    var wanted=identity(user),recordKey=key(wanted),db=await database(),at=now(),
+      userRef=db.collection('users').doc(userDocId(wanted)),recordRef=db.collection(COLLECTION).doc(recordKey);
+    return db.runTransaction(async function(tx){
+      var userSnap=await tx.get(userRef),recordSnap=await tx.get(recordRef),current=userSnap.exists?userSnap.data():null,
+        previous=recordSnap.exists?recordSnap.data():null;
+      if(current)assertUser(current,wanted);assertRecord(previous,wanted);
+      var record=buildRecord(previous,current,wanted,at),patch=copy(user);delete patch.consent;delete patch.originalEnrollmentAt;
+      var profile=nonEmptyMerge(nonEmptyMerge(record.profile,current||{}),patch);
+      Object.assign(profile,wanted);
+      // A recreated account receives a new access period while its first enrollment stays intact.
+      profile.createdAt=current&&timeValue(current.createdAt)!==null?current.createdAt:
+        (timeValue(user.createdAt)!==null?user.createdAt:at);
+      if(!current&&!previous)record.originalEnrollmentAt=timeValue(user.originalEnrollmentAt)!==null?user.originalEnrollmentAt:profile.createdAt;
+      profile.originalEnrollmentAt=record.originalEnrollmentAt;
+      profile.approved=user.approved===undefined?true:!!user.approved;
+      profile.approvedAt=empty(user.approvedAt)?at:user.approvedAt;
+      var consent=actualConsent(previous,current);
+      if(consent!==undefined)profile.consent=copy(consent);else delete profile.consent;
+      record.profile=copy(profile);if(consent!==undefined)record.consent=copy(consent);
+      record.accountState='active';event(record,current?'profile-update':'account-enroll','',userRef.id,at);
+      tx.set(recordRef,record);tx.set(userRef,profile);
+      return copy(profile);
+    });
+  }
+  async function restore(user){
+    var wanted=identity(user),recordKey=key(wanted),db=await database(),at=now(),
+      userRef=db.collection('users').doc(userDocId(user)),recordRef=db.collection(COLLECTION).doc(recordKey);
+    return db.runTransaction(async function(tx){
+      var userSnap=await tx.get(userRef),recordSnap=await tx.get(recordRef),previous=recordSnap.exists?recordSnap.data():null;
+      assertRecord(previous,wanted);if(!userSnap.exists)return null;
+      var current=userSnap.data();assertUser(current,wanted);
+      var record=buildRecord(previous,current,wanted,at),profile=nonEmptyMerge(record.profile,current),consent=actualConsent(previous,current);
+      profile.originalEnrollmentAt=record.originalEnrollmentAt;
+      if(consent!==undefined)profile.consent=copy(consent);else delete profile.consent;
+      record.profile=copy(profile);record.accountState='active';
+      if(!previous||!equal(current,profile)||!equal(previous.profile,record.profile)||!equal(previous.consentHistory,record.consentHistory)){
+        event(record,'record-restore','',userRef.id,at);tx.set(recordRef,record);
+        if(!equal(current,profile))tx.set(userRef,profile);
+      }
+      return copy(profile);
+    });
+  }
+  async function saveConsent(user,consent){
+    if(!signedConsent(consent)||timeValue(consent.agreedAt)===null||empty(consent.version))fail('동의 날짜·약관 버전·서명을 모두 확인해 주세요.');
+    var wanted=identity(user),recordKey=key(wanted),db=await database(),at=now(),
+      userRef=db.collection('users').doc(userDocId(user)),recordRef=db.collection(COLLECTION).doc(recordKey);
+    return db.runTransaction(async function(tx){
+      var userSnap=await tx.get(userRef),recordSnap=await tx.get(recordRef),previous=recordSnap.exists?recordSnap.data():null;
+      assertRecord(previous,wanted);if(!userSnap.exists)fail('등록된 회원이 없어 동의서를 저장하지 못했습니다.');
+      var current=userSnap.data();assertUser(current,wanted);
+      var record=buildRecord(previous,current,wanted,at),profile=copy(current);
+      addConsentHistory(record,consent,'consent-submit',at);
+      profile.consent=copy(consent);profile.originalEnrollmentAt=record.originalEnrollmentAt;
+      record.profile=nonEmptyMerge(record.profile,profile);record.profile.consent=copy(consent);record.consent=copy(consent);
+      record.accountState='active';event(record,'consent-save','',userRef.id,at);
+      tx.set(recordRef,record);tx.set(userRef,profile);
+      return copy(profile);
+    });
+  }
+  async function listRetained(inst){
+    inst=String(inst||'').trim();if(!inst)fail('조회할 기관을 확인해 주세요.');
+    var db=await database(),snapshot=await db.collection(COLLECTION).where('기관명','==',inst).get(),out=[];
+    snapshot.forEach(function(doc){
+      var record=doc.data();if(!record||!record.identity||record.identity['기관명']!==inst)return;
+      assertRecord(record,record.identity);
+      var item=copy(record);item.key=doc.id;item.isRetainedRecord=true;out.push(item);
+    });return out;
+  }
+  return {key:key,archiveAndDelete:archiveAndDelete,enroll:enroll,restore:restore,saveConsent:saveConsent,listRetained:listRetained};
+});
+
+/* Shared signature recovery. Account membership and signed document originals are independent. */
+(function(root,factory){
+  var api=factory();
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  if(root)root.CBT_SIGNATURES=api;
+})(typeof window!=='undefined'?window:globalThis,function(){
+  'use strict';
+  var WONJU='고려요양보호사교육원 원주점',MAIN='고려요양보호사교육원';
+  function text(v){return v==null?'':String(v).trim();}
+  function cohort(v){var s=text(v),m=/^(\d+)\s*기?$/.exec(s);return m?String(Number(m[1])):'';}
+  function birth(v){var s=text(v).replace(/[^0-9]/g,'');return s.length===6||s.length===8?s.slice(-6):'';}
+  function signature(v){return typeof v==='string'&&v.trim()?v:'';}
+  function scope(u){
+    u=u||{};
+    var a=[text(u.기관명||u.institution),cohort(u.기수||u.cohort),text(u.name||u.성명),birth(u.birth||u.생년월일)];
+    return !u.isGuest&&a.every(Boolean)?a:null;
+  }
+  function key(a){return a?JSON.stringify(a):'';}
+  function canonicalId(u){var a=Array.isArray(u)?u:scope(u),id=a?'scope_v1_'+encodeURIComponent(key(a)):'';return id.length<=1400?id:'';}
+  function cleanId(s){return s.replace(/[\/\.\#\$\[\]\s]/g,'_');}
+  function legacyId(u){var a=Array.isArray(u)?u:scope(u);return a?cleanId((a[0]===MAIN&&a[1]==='41'?'main41_':'')+a[1]+'기_'+a[2]+'_'+a[3]):'';}
+  function copy(v){return JSON.parse(JSON.stringify(v));}
+  function fingerprint(s){
+    // This is an identifier, not a security hash. Every collision is checked before a write.
+    var a=2166136261,b=5381;
+    for(var i=0;i<s.length;i++){a=Math.imul(a^s.charCodeAt(i),16777619);b=Math.imul(b,33)^s.charCodeAt(i);}
+    return (a>>>0).toString(16)+'_'+(b>>>0).toString(16)+'_'+s.length;
+  }
+  function stamp(v){
+    if(v&&typeof v.toMillis==='function')return v.toMillis();
+    if(typeof v==='number')return v;
+    return Date.parse(v)||0;
+  }
+  function create(options){
+    options=options||{};
+    var getUser=options.getUser||function(){return null;},storage=options.storage||null,memory=Object.create(null);
+    function database(){return typeof options.db==='function'?options.db():options.db;}
+    function current(a){return key(scope(getUser()))===key(a);}
+    function result(status,a,extra){return Object.assign({status:status,sign:'',scope:a?copy(a):null},extra||{});}
+    function cacheKey(a){return 'cbt_signature_scope_v1_'+canonicalId(a);}
+    function cacheRead(a){
+      if(memory[key(a)])return memory[key(a)];
+      try{var v=storage&&JSON.parse(storage.getItem(cacheKey(a))||'null');if(v&&key(v.scope)===key(a)&&signature(v.sign))return v;}catch(e){}
+      return null;
+    }
+    function cacheWrite(a,sign,source){
+      if(!current(a))return;
+      var v={scope:copy(a),sign:sign,source:source};memory[key(a)]=v;
+      try{if(storage)storage.setItem(cacheKey(a),JSON.stringify(v));}catch(e){}
+    }
+    function aliases(v,names,normalizer,wanted){
+      var present=false,valid=true;
+      names.forEach(function(n){if(v[n]!=null&&text(v[n])!==''){present=true;if(normalizer(v[n])!==wanted)valid=false;}});
+      return {present:present,valid:valid};
+    }
+    function matches(v,a,context,canonical){
+      if(!v||typeof v!=='object')return false;
+      var fields=[aliases(v,['기관명','institution'],text,a[0]),aliases(v,['기수','cohort'],cohort,a[1]),aliases(v,['성명','name'],text,a[2]),aliases(v,['생년월일','birth'],birth,a[3])];
+      if(fields.some(function(f){return !f.valid;}))return false;
+      if(v.scope&&key(v.scope)!==key(a))return false;
+      if(canonical)return fields.every(function(f){return f.present;})&&(!v.scope||key(v.scope)===key(a));
+      // A generic usersign ID never proves an institution: its legacy format omits that field.
+      if(!context)return fields.every(function(f){return f.present;});
+      // These dedicated collections are assigned to one institution/cohort by the deployed app.
+      return context.institution===a[0]&&context.cohort===a[1]&&fields[2].present&&fields[3].present;
+    }
+    function unproven(v,a,context,exactId){
+      if(!v||!signature(v.sign)||v.scope&&key(v.scope)!==key(a))return false;
+      var fields=[aliases(v,['기관명','institution'],text,a[0]),aliases(v,['기수','cohort'],cohort,a[1]),aliases(v,['성명','name'],text,a[2]),aliases(v,['생년월일','birth'],birth,a[3])];
+      if(fields.some(function(f){return !f.valid;}))return false;
+      return context?exactId||fields[2].present:fields[2].present;
+    }
+    function contexts(a){
+      if(a[0]===WONJU&&['56','57','58'].indexOf(a[1])>=0)return [
+        {collection:'ori'+a[1],institution:WONJU,cohort:a[1],id:legacyId(a)},
+        {collection:'sayu'+a[1],institution:WONJU,cohort:a[1],id:legacyId(a)}
+      ];
+      if(a[0]===MAIN&&a[1]==='41')return [
+        {collection:'ori_main41',institution:MAIN,cohort:'41',id:cleanId('main41_'+a[2]+'_'+a[3])},
+        {collection:'sayu_main41',institution:MAIN,cohort:'41',id:legacyId(a)}
+      ];
+      return [];
+    }
+    async function load(user){
+      var u=user||getUser(),a=scope(u),id=canonicalId(a);
+      if(!a||!id)return result('unavailable',a,{reason:'invalid_identity'});
+      if(!current(a))return result('stale',a);
+      var db,failed=false,ambiguous=false;
+      try{db=database();}catch(e){failed=true;}
+      function found(sign,source,extra){
+        if(!current(a))return result('stale',a);
+        cacheWrite(a,sign,source);return result('found',a,Object.assign({sign:sign,source:source},extra||{}));
+      }
+      async function direct(collection,docId,context,canonical){
+        try{
+          var snap=await db.collection(collection).doc(docId).get();
+          if(!current(a))return result('stale',a);
+          if(!snap.exists)return null;
+          var v=snap.data()||{};
+          if(!matches(v,a,context,canonical)){
+            if(canonical)return result('conflict',a,{reason:'canonical_identity_mismatch'});
+            if(unproven(v,a,context,true))ambiguous=true;
+            return null;
+          }
+          return signature(v.sign)?found(v.sign,collection+'/'+docId):null;
+        }catch(e){failed=true;return null;}
+      }
+      async function named(collection,context){
+        try{
+          var qs=await db.collection(collection).where('성명','==',a[2]).get();
+          if(!current(a))return result('stale',a);
+          var candidates=[];
+          qs.forEach(function(doc){var v=doc.data()||{};if(matches(v,a,context,false)&&signature(v.sign))candidates.push({v:v,id:doc.id});else if(unproven(v,a,context,false))ambiguous=true;});
+          candidates.sort(function(x,y){return stamp(y.v.updatedAt||y.v.ts)-stamp(x.v.updatedAt||x.v.ts)||String(x.id).localeCompare(String(y.id));});
+          return candidates.length?found(candidates[0].v.sign,collection+'/'+candidates[0].id):null;
+        }catch(e){failed=true;return null;}
+      }
+      if(db){
+        var r=await direct('usersign',id,null,true);if(r)return r;
+        // An existing consent signature is an image source only; no consent is inferred or written.
+        if(u.consent&&u.consent.agreed===true&&signature(u.consent.signature))return found(u.consent.signature,'users.consent');
+        r=await direct('usersign',legacyId(a),null,false);if(r)return r;
+        r=await named('usersign',null);if(r)return r;
+        var list=contexts(a);
+        for(var i=0;i<list.length;i++){
+          var c=list[i];r=await direct(c.collection,c.id,c,false);if(r)return r;
+          r=await named(c.collection,c);if(r)return r;
+        }
+      }else failed=true;
+      if(!current(a))return result('stale',a);
+      if(u.consent&&u.consent.agreed===true&&signature(u.consent.signature))return found(u.consent.signature,'users.consent',{offline:failed});
+      var cached=cacheRead(a);
+      if(cached)return found(cached.sign,'cache',{offline:failed});
+      if(ambiguous)return result('conflict',a,{reason:'legacy_identity_unproven'});
+      return result(failed?'unavailable':'missing',a,{reason:failed?'read_failed':'no_signature'});
+    }
+    async function remember(sign,metadata){
+      var a=scope(getUser()),id=canonicalId(a),sg=signature(sign),db;
+      if(!a||!id)return result('unavailable',a,{reason:'invalid_identity'});
+      if(!sg)return result('unavailable',a,{reason:'empty_signature'});
+      try{db=database();}catch(e){}
+      if(!db||typeof db.runTransaction!=='function')return result('unavailable',a,{reason:'transaction_unavailable'});
+      var now=Date.now(),ref=db.collection('usersign').doc(id),versionRef=ref.collection('versions').doc(fingerprint(sg));
+      try{
+        var saved=await db.runTransaction(async function(tx){
+          var snap=await tx.get(ref),old=snap.exists?(snap.data()||{}):null;
+          if(!current(a))throw new Error('signature_stale');
+          if(old&&!matches(old,a,null,true))throw new Error('signature_identity_conflict');
+          var version=await tx.get(versionRef);
+          if(version.exists&&((version.data()||{}).sign!==sg||!matches(version.data(),a,null,true)))throw new Error('signature_version_conflict');
+          var prior=old&&signature(old.sign),priorRef=prior&&prior!==sg?ref.collection('versions').doc(fingerprint(prior)):null,priorSnap=priorRef?await tx.get(priorRef):null;
+          if(prior&&prior!==sg&&fingerprint(prior)===fingerprint(sg))throw new Error('signature_version_conflict');
+          if(priorSnap&&priorSnap.exists&&((priorSnap.data()||{}).sign!==prior||!matches(priorSnap.data(),a,null,true)))throw new Error('signature_version_conflict');
+          if(!current(a))throw new Error('signature_stale');
+          var fields={scopeVersion:1,scope:copy(a),기관명:a[0],기수:a[1]+'기',성명:a[2],생년월일:a[3]};
+          if(priorRef&&!priorSnap.exists)tx.set(priorRef,Object.assign({},fields,{sign:prior,savedAt:old.updatedAt||old.createdAt||now,source:'previous_canonical'}));
+          if(!version.exists)tx.set(versionRef,Object.assign({},fields,{sign:sg,savedAt:now,source:text(metadata&&metadata.source)||'student_signature'}));
+          // Existing originals and unknown fields remain untouched. Every distinct image has an immutable version document.
+          var next=Object.assign({},old||{},fields,{sign:sg,originalSign:old&&signature(old.originalSign)||prior||sg,createdAt:old&&old.createdAt||now,updatedAt:now});
+          tx.set(ref,next,{merge:true});return next;
+        });
+        if(!current(a))return result('stale',a);
+        cacheWrite(a,saved.sign,'usersign/'+id);return result('found',a,{sign:saved.sign,source:'usersign/'+id,saved:true});
+      }catch(e){
+        var message=e&&e.message||'';
+        if(message==='signature_stale')return result('stale',a);
+        if(message==='signature_identity_conflict'||message==='signature_version_conflict')return result('conflict',a,{reason:message});
+        return result('unavailable',a,{reason:'write_failed'});
+      }
+    }
+    return {scope:scope,canonicalId:canonicalId,legacyId:legacyId,load:load,remember:remember,clearMemory:function(){memory=Object.create(null);}};
+  }
+  return {create:create,scope:scope,canonicalId:canonicalId,legacyId:legacyId};
+});
+
 // Firestore 일괄 부트스트랩: 관리자·기관·슈퍼 데이터를 로컬 캐시로 로드
 window._fbBootstrapped = (async()=>{
   try{
@@ -1204,11 +1602,14 @@ window._fbBootstrapped = (async()=>{
       });
       if(expiredDocs.length > 0){
         console.log(`[Auto-expire] ${expiredDocs.length}명 만료 회원 삭제 시작`);
+        const actuallyExpired=[];
         for(const {doc, data: u} of expiredDocs){
-          await db.collection('users').doc(doc.id).delete();
+          var removal=await CBT_RECORDS.archiveAndDelete(u,{docId:doc.id,reason:'expired',expiresBefore:now-EXPIRE_MS});
+          if(!removal.deleted)continue;
+          actuallyExpired.push({data:u});
           // 시험 기록도 삭제 (Firestore history)
           try{
-            const histSnap = await db.collection('history').where('userName','==',u.name).where('userBirth','==',u.birth).get();
+            const histSnap = await db.collection('history').where('userKey','==',`${u.name}_${u.birth}_${u.기수||''}_${u.기관명||''}`).get();
             histSnap.docs.forEach(hd => hd.ref.delete());
           }catch(he){}
         }
@@ -1217,7 +1618,7 @@ window._fbBootstrapped = (async()=>{
         const freshUsers = freshSnap.docs.map(d=>d.data());
         safeSetItem('cbt_users', JSON.stringify(freshUsers));
         // 로컬 시험 기록도 정리
-        expiredDocs.forEach(({data: u})=>{
+        actuallyExpired.forEach(({data: u})=>{
           try{
             const uk = `${u.name}_${u.birth}_${u.기수||''}_${u.기관명||''}`;
             if(typeof clearHistUser==='function')clearHistUser(uk);
@@ -3245,6 +3646,7 @@ function renderInstUsers(instName,users){
   </div>
   <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
     <button onclick="superDownloadSample()" style="flex:1;min-width:90px;background:#eef2f7;color:#3a4d6b;border:1px solid #c8d3e0;padding:5px;border-radius:4px;cursor:pointer;font-size:11px;">📋 엑셀 샘플 양식</button>
+    <button onclick="viewArchivedConsents('${safeInst}')" style="flex:1;background:#f5f1ff;border:1px solid #d6c8ee;padding:5px;cursor:pointer;">보관 동의서</button>
     <button onclick="downloadConsentCsv('${safeInst}')" style="flex:1;min-width:90px;background:#fff7e8;color:#c66200;border:1px solid #ffe5b4;padding:5px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">📊 동의 CSV</button>
     <button onclick="downloadConsentPdfAll('${safeInst}')" style="flex:1;min-width:90px;background:#e6f0fa;color:#1f4e79;border:1px solid #c0d0e0;padding:5px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">📄 동의 PDF</button>
   </div>
@@ -3277,20 +3679,20 @@ function renderInstUsers(instName,users){
     const badge=u.approved?'<span class="badge-approved">✓ 승인</span>':'<span class="badge-pending">⏳ 대기</span>';
     let consentCell = '';
     if(u.consent && u.consent.agreed){
-      consentCell = `<button onclick="viewSignature('${escHtml(instName)}','${escHtml(u.name)}','${escHtml(u.birth)}')" style="background:#e6f7ec;border:1px solid #0a7a2e;color:#0a7a2e;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;" title="서명 보기">✓ 서명</button>`;
+      consentCell = `<button onclick="viewSignature('${escHtml(instName)}','${escHtml(u.name)}','${escHtml(u.birth)}','${escHtml(u.기수||'')}')" style="background:#e6f7ec;border:1px solid #0a7a2e;color:#0a7a2e;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;" title="서명 보기">✓ 서명</button>`;
     } else if(u.consent && u.consent.legacy){
       consentCell = `<span style="background:#eef2f7;color:#888;padding:2px 6px;border-radius:3px;font-size:10.5px;">기존</span>`;
     } else {
       consentCell = `<span style="background:#fdecec;color:#c0392b;padding:2px 6px;border-radius:3px;font-size:10.5px;">미동의</span>`;
     }
     const apBtn=u.approved
-      ?`<button class="btn-revoke" onclick="revokeUser('${escHtml(instName)}','${escHtml(u.name)}','${escHtml(u.birth)}')">취소</button>`
-      :`<button class="btn-approve" onclick="approveUser('${escHtml(instName)}','${escHtml(u.name)}','${escHtml(u.birth)}')">승인</button>`;
-    const delBtn=`<button onclick="superDelUser('${escHtml(instName)}','${escHtml(u.name)}','${escHtml(u.birth)}')" style="background:#fce4e4;border:none;color:#e53935;padding:3px 7px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:3px;">삭제</button>`;
+      ?`<button class="btn-revoke" onclick="revokeUser('${escHtml(instName)}','${escHtml(u.name)}','${escHtml(u.birth)}','${escHtml(u.기수||'')}')">취소</button>`
+      :`<button class="btn-approve" onclick="approveUser('${escHtml(instName)}','${escHtml(u.name)}','${escHtml(u.birth)}','${escHtml(u.기수||'')}')">승인</button>`;
+    const delBtn=`<button onclick="superDelUser('${escHtml(instName)}','${escHtml(u.name)}','${escHtml(u.birth)}','${escHtml(u.기수||'')}')" style="background:#fce4e4;border:none;color:#e53935;padding:3px 7px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:3px;">삭제</button>`;
     const safeName = escHtml(u.name).replace(/'/g,"\\'");
     const safeBirth = escHtml(u.birth).replace(/'/g,"\\'");
     h+=`<tr data-cohort="${escHtml(u.기수||'')}">
-      <td style="text-align:center;"><input type="checkbox" class="bulk-chk" data-name="${escHtml(u.name)}" data-birth="${escHtml(u.birth)}" onclick="updateBulkDelBtn('${safeInst}')"></td>
+      <td style="text-align:center;"><input type="checkbox" class="bulk-chk" data-name="${escHtml(u.name)}" data-birth="${escHtml(u.birth)}" data-cohort="${escHtml(u.기수||'')}" onclick="updateBulkDelBtn('${safeInst}')"></td>
       <td>${badge}</td>
       <td>${escHtml(u.기수||'')}</td>
       <td><b>${escHtml(u.name)}</b></td>
@@ -3408,8 +3810,8 @@ function superUploadUsers(instName){
           const birth=normBirth(birthRaw);
           if(!name||birth.length!==6){invalidCount++;continue;}
           // 중복 체크
-          if(existing.find(u=>u.name===name&&u.birth===birth)){dupCount++;continue;}
-          if(toAdd.find(u=>u.name===name&&u.birth===birth)){dupCount++;continue;}
+          if(existing.find(u=>u.name===name&&u.birth===birth&&String(u.기수||'').replace(/\D/g,'')===String(기수).replace(/\D/g,''))){dupCount++;continue;}
+          if(toAdd.find(u=>u.name===name&&u.birth===birth&&String(u.기수||'').replace(/\D/g,'')===String(기수).replace(/\D/g,''))){dupCount++;continue;}
           toAdd.push({기관명:instName,기수,name,birth,approved:true,approvedAt:Date.now(),createdAt:Date.now()});
         }
         if(toAdd.length===0){
@@ -3419,22 +3821,11 @@ function superUploadUsers(instName){
         if(!confirm(`"${instName}" 기관에 ${toAdd.length}명의 훈련생을 추가합니다.\n중복: ${dupCount}명, 형식 오류: ${invalidCount}명\n\n계속하시겠습니까?`)){
           fileInput.remove();return;
         }
-        // 로컬 저장
-        const newAll=[...all,...toAdd];
-        setAllUsers(newAll);
-        // Firestore 동기화
-        if(window._FB){
-          try{
-            await window._FB.authReady;
-            const colRef=_FB.db.collection('users');
-            const batch=_FB.db.batch();
-            toAdd.forEach(u=>{
-              const docId=`${u.기관명}__${u.기수||''}__${u.name}__${u.birth}`.replace(/[\/\.]/g,'_');
-              batch.set(colRef.doc(docId),u);
-            });
-            await batch.commit();
-          }catch(fe){console.error('superUploadUsers firestore',fe);altOpen('일부 클라우드 저장 실패: '+fe.message,null);}
-        }
+        const saved=[];
+        for(const u of toAdd){ saved.push(await CBT_RECORDS.enroll(u)); }
+        const current=getAllUsers();
+        saved.forEach(u=>{const i=current.findIndex(x=>CBT_RECORDS.key(x)===CBT_RECORDS.key(u));if(i<0)current.push(u);else current[i]=u;});
+        setAllUsers(current);
         renderInstList();
         const adm=getAdmins().find(a=>a.기관명===instName);
         if(adm){const p=document.getElementById('instUsers_'+adm.id);if(p){p.classList.add('open');const b=document.getElementById('toggleBtn_'+adm.id);if(b){b.classList.add('open');b.textContent='🔽 회원 숨기기';}}}
@@ -3475,20 +3866,14 @@ async function superAddUser(instName){
   const birth=normBirth((birthRaw||'').trim());
   if(birth.length!==6){ altOpen('생년월일 6자리를 입력하세요.',null); return; }
   const all=getAllUsers();
-  if(all.find(u=>u.기관명===instName&&u.name===name&&u.birth===birth)){
+  if(all.find(u=>u.기관명===instName&&u.name===name&&u.birth===birth&&String(u.기수||'').replace(/\D/g,'')===cohort)){
     altOpen('이미 등록된 훈련생입니다.',null); return;
   }
   const newUser={ 기관명:instName, 기수:cohort, name, birth, approved:true, approvedAt:Date.now(), createdAt:Date.now() };
-  all.push(newUser);
-  setAllUsers(all);
-  // Firestore 동기화
-  if(window._FB){
-    try{
-      await window._FB.authReady;
-      const docId=`${instName}__${cohort}__${name}__${birth}`.replace(/[\/\.]/g,'_');
-      await _FB.db.collection('users').doc(docId).set(newUser);
-    }catch(e){ console.error('superAddUser firestore',e); altOpen('클라우드 저장 실패: '+e.message,null); }
-  }
+  try{
+    const saved=await CBT_RECORDS.enroll(newUser);
+    all.push(saved);setAllUsers(all);
+  }catch(e){altOpen('클라우드 저장 실패: '+e.message,null);return;}
   renderInstList();
   const adm=getAdmins().find(a=>a.기관명===instName);
   if(adm){const p=document.getElementById('instUsers_'+adm.id);if(p){p.classList.add('open');const b=document.getElementById('toggleBtn_'+adm.id);if(b){b.classList.add('open');b.textContent='🔽 회원 숨기기';}}}
@@ -3530,9 +3915,9 @@ function toggleInstUsers(adminId){
   btn.classList.toggle('open');
   btn.textContent=p.classList.contains('open')?'🔽 회원 숨기기':'👥 회원 보기';
 }
-function approveUser(instName,name,birth){
+function approveUser(instName,name,birth,cohort){
   const users=getAllUsers();
-  const idx=users.findIndex(u=>u.기관명===instName&&u.name===name&&u.birth===birth);
+  const idx=users.findIndex(u=>u.기관명===instName&&u.name===name&&u.birth===birth&&String(u.기수||'').replace(/\D/g,'')===String(cohort||'').replace(/\D/g,''));
   if(idx<0)return;
   users[idx].approved=true;
   users[idx].approvedAt=Date.now();
@@ -3542,10 +3927,10 @@ function approveUser(instName,name,birth){
   const adm=getAdmins().find(a=>a.기관명===instName);
   if(adm){const p=document.getElementById('instUsers_'+adm.id);if(p){p.classList.add('open');const b=document.getElementById('toggleBtn_'+adm.id);if(b){b.classList.add('open');b.textContent='🔽 회원 숨기기';}}}
 }
-function revokeUser(instName,name,birth){
+function revokeUser(instName,name,birth,cohort){
   if(!confirm(`${name}님의 승인을 취소합니다. 해당 사용자는 다시 로그인할 수 없게 됩니다. 계속하시겠습니까?`))return;
   const users=getAllUsers();
-  const idx=users.findIndex(u=>u.기관명===instName&&u.name===name&&u.birth===birth);
+  const idx=users.findIndex(u=>u.기관명===instName&&u.name===name&&u.birth===birth&&String(u.기수||'').replace(/\D/g,'')===String(cohort||'').replace(/\D/g,''));
   if(idx<0)return;
   users[idx].approved=false;
   delete users[idx].approvedAt;
@@ -3870,6 +4255,9 @@ async function doLogin(){
     const doc = await loginWait(_FB.db.collection('users').doc(docId).get(),12000);
     if(doc.exists){
       u = doc.data();
+      try{u=await loginWait(CBT_RECORDS.restore(u),12000);}
+      catch(retentionError){if(!(u.consent&&(u.consent.agreed||u.consent.legacy)))throw retentionError;console.warn('동의서 보관 연결 확인 지연');}
+      if(!u){showErr('계정이 변경되었습니다. 다시 확인해 주세요.');return;}
     } else {
       // 등록되지 않은 회원은 로그인 거부 (관리자가 사전 등록 필요)
       showErr('등록되지 않은 회원입니다. 입력하신 정보로 등록된 분이 없어요. 관리자께 확인 부탁드려요.\n(특히 기관명·기수가 등록 시 그대로인지 확인)', true);
@@ -4160,33 +4548,22 @@ function uTab(t){
 }
 async function addSingleUser(){
   if(!ADMIN_USER)return;
-  const 기수=document.getElementById('sfCohort').value.trim();
+  const 기수=document.getElementById('sfCohort').value.replace(/\D/g,'');
   const name=document.getElementById('sfName').value.trim();
   const birth=normBirth(document.getElementById('sfBirth').value);
   const err=document.getElementById('sfErr');
   if(!name){err.textContent='이름을 입력하세요.';return;}
   if(birth.length!==6){err.textContent='생년월일 6자리를 입력하세요.';return;}
-  const dup=PENDING_USERS.find(u=>u.name===name&&u.birth===birth);
+  const dup=PENDING_USERS.find(u=>u.name===name&&u.birth===birth&&String(u.기수||'').replace(/\D/g,'')===기수);
   if(dup){err.textContent=`이미 등록됨: ${dup.name} (${dup.birth})`;return;}
   // 기관관리자 등록 = 즉시 승인 (슈퍼관리자와 동일 정책)
   const newUser={기관명:ADMIN_USER.기관명,기수,name,birth,approved:true,approvedAt:Date.now(),createdAt:Date.now()};
-  PENDING_USERS.push(newUser);
-  // 즉시 localStorage 저장
-  const all=getAllUsers();
-  const others=all.filter(u=>u.기관명!==ADMIN_USER.기관명);
-  setAllUsers([...others,...PENDING_USERS]);
-  // Firestore 동기화 (슈퍼관리자와 동일)
-  if(window._FB){
-    try{
-      await window._FB.authReady;
-      const docId=`${ADMIN_USER.기관명}__${기수}__${name}__${birth}`.replace(/[\/\.]/g,'_');
-      await _FB.db.collection('users').doc(docId).set(newUser);
-    }catch(e){
-      console.error('addSingleUser firestore',e);
-      err.style.color='var(--fail)';err.textContent='⚠ 클라우드 저장 실패: '+e.message;
-      return;
-    }
-  }
+  try{
+    const saved=await CBT_RECORDS.enroll(newUser);
+    PENDING_USERS.push(saved);
+    const all=getAllUsers(),others=all.filter(u=>u.기관명!==ADMIN_USER.기관명);
+    setAllUsers([...others,...PENDING_USERS]);
+  }catch(e){err.style.color='var(--fail)';err.textContent='클라우드 저장 실패: '+e.message;return;}
   ['sfCohort','sfName','sfBirth'].forEach(i=>document.getElementById(i).value='');
   err.style.color='var(--pass)';err.textContent=`✓ ${name} 추가 완료 (총 ${PENDING_USERS.length}명)`;
   setTimeout(()=>{err.style.color='';err.textContent='';},2500);
@@ -4242,7 +4619,7 @@ function parseUsrFile(e){
       }
       const all=[...PENDING_USERS];
       newUsers.forEach(nu=>{
-        if(!all.find(u=>u.name===nu.name&&u.birth===nu.birth))all.push(nu);
+        if(!all.find(u=>u.name===nu.name&&u.birth===nu.birth&&String(u.기수||'').replace(/\D/g,'')===String(nu.기수||'').replace(/\D/g,'')))all.push(nu);
       });
       PENDING_USERS=all;
       renderUsrList();
@@ -4338,7 +4715,7 @@ function downloadSample(){
                  &&(x.기관명||'')===(u.기관명||'')
                  &&String(x.기수||'')===String(u.기수||''));
     if(match&&match.approved)CURR_USER=match;
-    else if(u.approved)CURR_USER=u;  // 로컬에 저장된 세션 자체가 승인된 경우 신뢰
+    // 서버 명단에 없는 보관 계정은 로그인 계정으로 복원하지 않음
     else{safeRemoveItem('cbt_curr');sessionStorage.removeItem('cbt_curr');}
   }catch(e){safeRemoveItem('cbt_curr');sessionStorage.removeItem('cbt_curr');}
 })();
@@ -11519,7 +11896,7 @@ if (location.protocol === 'file:') {
 
       <div class="ct-clause">
         <p>본인은 <b id="ctClauseInst">[기관명]</b>이 요양보호사 자격시험 CBT 학습 관리·시험 응시·채점·학습 진도 관리를 위하여 본인의 <b>이름, 생년월일, 소속 기관·기수, 학습 및 시험 응시 기록</b>을 수집·이용하는 것에 동의합니다.</p>
-        <p>수집된 개인정보는 <b>등록일로부터 4개월간 보관</b>되며, 그 이후에는 <b>학습 기록·동의서·전자서명을 포함한 모든 정보가 자동으로 영구 삭제</b>되며 복구되지 않습니다.</p>
+        <p>이용 계정은 <b>등록일로부터 4개월간 유효</b>합니다. 계정의 만료·명단 삭제 후에도 <b>사유서·동의서·전자서명은 교육 기록 확인을 위해 별도로 보관</b>하며, 같은 기관·기수로 재등록하면 기존 기록을 연결합니다. 보관이 필요하지 않게 되거나 본인의 삭제 요청이 있으면 기관에서 확인 후 처리합니다.</p>
         <p>본인은 위 동의를 거부할 권리가 있으나, 거부 시 본 CBT 학습 시스템의 이용이 제한됨을 확인하였습니다. 또한 보유 기간 중에도 언제든지 소속 기관에 요청하여 본인의 개인정보를 즉시 삭제할 수 있음을 안내받았습니다.</p>
         <p style="margin-top:10px;padding-top:8px;border-top:1px dashed #ddd;font-size:13px;color:#555;">본인은 본 CBT 학습 시스템의 <b>모든 문제·해설·플래시카드·UI 구성·소스코드</b>가 운영 기관의 저작물이며, 학습 외 용도로의 <b>무단 복제·배포·캡처 공유·역공학·재가공·상업적 이용을 하지 않을 것</b>에 동의합니다. 위반 시 「저작권법」 및 관련 법률에 따른 책임을 질 수 있음을 확인합니다.</p>
         <p class="ct-clause-foot">개인정보처리자: <b id="ctClauseInst2">[기관명]</b><br>문의: 소속 기관 담당자에게 문의</p>
@@ -11626,7 +12003,19 @@ if (location.protocol === 'file:') {
     var login = document.getElementById('login');
     if(login) login.classList.add('hidden');
     document.getElementById('consent').classList.remove('hidden');
-    setTimeout(function(){ setupSigCanvas(); ctClearSig(); }, 50);
+    setTimeout(function(){
+      setupSigCanvas();ctClearSig();
+      if(!window.usignLoad)return;
+      var expected=CBT_RECORDS.key(u);
+      window.usignLoad(function(sign,ok){
+        if(!sign||!ok||!window.CURR_USER||CBT_RECORDS.key(window.CURR_USER)!==expected||document.getElementById('consent').classList.contains('hidden'))return;
+        var c=document.getElementById('ctSigCanvas'),ctx=c.getContext('2d'),image=new Image();
+        image.onload=function(){
+          if(hasInk()||!window.CURR_USER||CBT_RECORDS.key(window.CURR_USER)!==expected||document.getElementById('consent').classList.contains('hidden'))return;
+          ctx.drawImage(image,0,0,c.width,c.height);
+        };image.src=sign;
+      });
+    }, 50);
   }
   window.showConsent = showConsent;
   window._needsConsent = isNew;
@@ -11640,16 +12029,15 @@ if (location.protocol === 'file:') {
       agreed: true,
       agreedAt: Date.now(),
       signature: sig,
-      version: '1.0',
+      version: '1.1',
+      retentionNotice: '계정은 등록일부터 4개월 유효. 계정 만료·명단 삭제 후 사유서·동의서·전자서명은 교육 기록 확인을 위해 별도 보관하며 동일 기관·기수 재등록 시 연결. 보관 필요 종료 또는 본인 삭제 요청은 기관 확인 후 처리.',
       ip: '',  // 서버 측에서 기록 안 함 (Firebase Anonymous Auth)
       userAgent: navigator.userAgent.slice(0, 100)
     };
     try{
-      var docId = ((u.기관명||'') + '__' + (u.기수||'') + '__' + (u.name||'') + '__' + (u.birth||'')).replace(/[\/\.]/g,'_');
-      if(window._FB && window._FB.db){
-        await window._FB.db.collection('users').doc(docId).update({ consent: consent });
-      }
-      u.consent = consent;
+      var savedUser=await CBT_RECORDS.saveConsent(u,consent);
+      if(!window.CURR_USER||CBT_RECORDS.key(window.CURR_USER)!==CBT_RECORDS.key(u))return;
+      Object.assign(u,savedUser);
       if(window.usignRemember) window.usignRemember(sig);
       try { localStorage.setItem('cbt_curr', JSON.stringify(u)); } catch(e){}
       // 로컬 캐시 갱신
@@ -11695,10 +12083,15 @@ if (location.protocol === 'file:') {
 
   // 페이지 로드 시 자동 로그인 복원 후 동의 체크
   window.addEventListener('load', function(){
-    setTimeout(function(){
-      if(window.CURR_USER && isNew(window.CURR_USER)){
-        showConsent(window.CURR_USER);
-      }
+    setTimeout(async function(){
+      if(!window.CURR_USER)return;
+      var previous=window.CURR_USER;
+      try{
+        var restored=await CBT_RECORDS.restore(previous);
+        if(!restored||window.CURR_USER!==previous)return;
+        window.CURR_USER=restored;
+        if(isNew(restored))showConsent(restored);
+      }catch(e){console.warn('동의서 보관 기록 확인 실패');}
     }, 1500);
   });
 })();
@@ -12130,10 +12523,11 @@ if (location.protocol === 'file:') {
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
            +' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
   }
-  function findUser(instName, name, birth){
-    var all = (typeof getAllUsers==='function') ? getAllUsers() : [];
+  function findUser(instName, name, birth, cohort){
+    var all = ((typeof getAllUsers==='function') ? getAllUsers() : []).concat(window.cbtRetainedConsentProfiles?cbtRetainedConsentProfiles():[]);
+    all.sort(function(a,b){return Number(!!(b.consent&&b.consent.agreed))-Number(!!(a.consent&&a.consent.agreed));});
     return all.find(function(u){
-      return (u.기관명||'')===instName && u.name===name && u.birth===birth;
+      return (u.기관명||'')===instName && u.name===name && u.birth===birth && String(u.기수||'').replace(/\D/g,'')===String(cohort||'').replace(/\D/g,'');
     });
   }
 
@@ -12142,8 +12536,8 @@ if (location.protocol === 'file:') {
   };
 
   // 개별 학생 서명 보기 모달
-  window.viewSignature = function(instName, name, birth){
-    var u = findUser(instName, name, birth);
+  window.viewSignature = function(instName, name, birth, cohort){
+    var u = findUser(instName, name, birth, cohort);
     if(!u){ alert('회원 정보를 찾을 수 없습니다.'); return; }
     if(!u.consent || !u.consent.agreed){
       alert('이 회원은 아직 개인정보 활용에 동의하지 않았습니다.');
@@ -12160,14 +12554,14 @@ if (location.protocol === 'file:') {
       '<div style="margin-top:14px;font-size:13px;color:#555;text-align:center;">↓ 본인 서명 ↓</div>' +
       ( (u.consent && u.consent.signature) ? ('<img src="' + escH(u.consent.signature) + '" class="cv-sig-img" alt="서명">') : '<div class="cv-sig-empty" style="text-align:center;color:#888;padding:20px;">서명 없음</div>') +
       '<div class="cv-actions">' +
-        '<button onclick="downloadConsentPdfOne(\'' + escH(instName) + '\',\'' + escH(name) + '\',\'' + escH(birth) + '\')" style="background:#1f4e79;color:#fff;">📄 PDF로 인쇄·저장</button>' +
+        '<button onclick="downloadConsentPdfOne(\'' + escH(instName) + '\',\'' + escH(name) + '\',\'' + escH(birth) + '\',\'' + escH(u.기수||'') + '\')" style="background:#1f4e79;color:#fff;">📄 PDF로 인쇄·저장</button>' +
       '</div>';
     document.getElementById('cvMdl').classList.add('open');
   };
 
   // CSV 다운로드 (기관별 동의 현황 일괄)
-  window.downloadConsentCsv = function(instName){
-    var all = (typeof getAllUsers==='function') ? getAllUsers() : [];
+  window.downloadConsentCsv = async function(instName){
+    var all;try{all=await cbtConsentProfiles(instName);}catch(e){alert('보관 기록 확인 실패: '+e.message);return;}
     var users = all.filter(function(u){ return (u.기관명||'') === instName; });
     if(users.length === 0){ alert('소속 회원이 없습니다.'); return; }
     var rows = [['기관명','기수','이름','생년월일','동의여부','동의일시','약관버전']];
@@ -12198,15 +12592,15 @@ if (location.protocol === 'file:') {
   };
 
   // PDF 다운로드 (개별 — 인쇄 친화 새 창)
-  window.downloadConsentPdfOne = function(instName, name, birth){
-    var u = findUser(instName, name, birth);
+  window.downloadConsentPdfOne = function(instName, name, birth, cohort){
+    var u = findUser(instName, name, birth, cohort);
     if(!u || !u.consent || !u.consent.agreed){ alert('동의 기록이 없습니다.'); return; }
     openPrintWindow([u]);
   };
 
   // PDF 다운로드 (전체 — 기관별 동의자 전원, 한 장에 40명 압축)
-  window.downloadConsentPdfAll = function(instName){
-    var all = (typeof getAllUsers==='function') ? getAllUsers() : [];
+  window.downloadConsentPdfAll = async function(instName){
+    var all;try{all=await cbtConsentProfiles(instName);}catch(e){alert('보관 기록 확인 실패: '+e.message);return;}
     var users = all.filter(function(u){ return (u.기관명||'') === instName && u.consent && u.consent.agreed; });
     if(users.length === 0){ alert('서명 동의한 회원이 없습니다.\n(기존 회원은 동의 절차가 면제되어 있습니다.)'); return; }
     var pages = Math.ceil(users.length / 40);
@@ -12243,7 +12637,7 @@ if (location.protocol === 'file:') {
       html += '<p style="font-size:13px;color:#555;">「개인정보 보호법」 제15조에 따라 아래 내용을 알려드리며, 본인은 다음 사항에 동의합니다.</p>';
       html += '<div class="clause">';
       html += '<p>본인은 <b>'+escH(u.기관명||'')+'</b>이 요양보호사 자격시험 CBT 학습 관리·시험 응시·채점·학습 진도 관리를 위하여 본인의 <b>이름, 생년월일, 소속 기관·기수, 학습 및 시험 응시 기록</b>을 수집·이용하는 것에 동의합니다.</p>';
-      html += '<p>수집된 개인정보는 <b>등록일로부터 4개월간 보관</b>되며, 그 이후에는 학습 기록·동의서·전자서명을 포함한 모든 정보가 자동으로 영구 삭제됩니다.</p>';
+      html += c.version==='1.1'?'<p>'+escH(c.retentionNotice||'계정 만료·명단 삭제 후 사유서·동의서·전자서명은 별도로 보관됩니다.')+'</p>':'<p>수집된 개인정보는 <b>등록일로부터 4개월간 보관</b>되며, 그 이후에는 학습 기록·동의서·전자서명을 포함한 모든 정보가 자동으로 영구 삭제됩니다.</p>';
       html += '<p>본인은 위 동의를 거부할 권리가 있으나, 거부 시 본 CBT 학습 시스템의 이용이 제한됨을 확인하였습니다. 보유 기간 중에도 언제든지 소속 기관에 요청하여 본인의 개인정보를 즉시 삭제할 수 있음을 안내받았습니다.</p>';
       html += '</div>';
       html += '<div class="info">';
@@ -12257,7 +12651,7 @@ if (location.protocol === 'file:') {
       if(c.signature) html += '<img src="'+escH(c.signature)+'" alt="서명">';
       else html += '<div style="text-align:center;color:#888;padding:30px 0;">서명 없음</div>';
       html += '</div>';
-      html += '<div class="foot">개인정보처리자: '+escH(u.기관명||'')+'<br>본 동의서는 4개월 후 자동 삭제됩니다</div>';
+      html += '<div class="foot">개인정보처리자: '+escH(u.기관명||'')+'<br>원본 동의서 버전: '+escH(c.version||'1.0')+' · 계정 만료와 별도 보관</div>';
       html += '</div>';
     });
     html += '<script>setTimeout(function(){window.print();},500);<'+'/script>';
@@ -12307,8 +12701,8 @@ if (location.protocol === 'file:') {
       html += '<div class="hdr-ttl">개인정보 수집·이용 동의서 — 서명자 명단</div>';
       html += '<div class="hdr-sub">';
       html += '아래 서명자는 <b>'+escH(instName)+'</b>이 본인의 <b>이름·생년월일·학습기록</b>을 ';
-      html += 'CBT 학습 관리 목적으로 수집·이용하며, <b>등록 후 4개월 보관 후 자동 영구 삭제</b>됨을 ';
-      html += '확인하고 「개인정보 보호법」 제15조에 따라 동의함.';
+      html += 'CBT 학습 관리 목적으로 수집·이용하는 데 동의한 원본 기록입니다. ';
+      html += '각 동의 일시와 원본 버전을 표시하며, 당시 약관은 개인별 원본 동의서에서 확인할 수 있습니다.';
       html += '</div>';
       html += '<div class="meta"><span>기관: '+escH(instName)+'</span><span>발행일: '+nowStr+'</span><span>페이지 '+(p+1)+' / '+totalPages+' (총 '+users.length+'명)</span></div>';
       html += '</div>';
@@ -12322,7 +12716,7 @@ if (location.protocol === 'file:') {
         html += '<div class="cell-no">No. '+(p*40+i+1)+'</div>';
         html += '<div class="cell-name">'+escH(u.name||'')+'</div>';
         html += '<div class="cell-info">'+escH(u.birth||'')+' · '+escH(u.기수||'')+'기</div>';
-        html += '<div class="cell-date">동의: '+dateStr+'</div>';
+        html += '<div class="cell-date">동의: '+dateStr+' · v'+escH(c.version||'1.0')+'</div>';
         html += '<div class="cell-sig">';
         if(c.signature) html += '<img src="'+escH(c.signature)+'" alt="서명">';
         else html += '<div class="cell-sig-empty">서명 없음</div>';
@@ -16872,11 +17266,12 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
       course:_course,교육과정:window.C58.courses[_course].name,기관명:u.기관명||'',동의:true,date:today(),ts:new Date().toISOString(),sign:sign,
       국비:(_kb===1),구분:(_kb===1?'국비(내일배움카드)':'일반(자비)'),
       items:needIdx().map(function(i){ return DOC.consent[i].t; })};
+    var savingOwner=CBT_RECORDS.key(u);
     var ticket=_req, saveId=myId(); _saving=true;
     d.collection(COL).doc(saveId).set(rec,{merge:true}).then(function(){
-      if(ticket!==_req)return; _saving=false;
+      if(ticket!==_req||!window.CURR_USER||CBT_RECORDS.key(window.CURR_USER)!==savingOwner)return; _saving=false;
       _st.sign=sign; _st.saved=rec;
-      try{ d.collection('usersign').doc(myId()).set({sign:sign,성명:rec.성명,생년월일:rec.생년월일,기수:'58기'},{merge:true}); }catch(e){}
+      try{ if(window.usignRemember)window.usignRemember(sign); }catch(e){}
       alert('동의가 저장되었습니다. 감사합니다!');
       var k=_step; render(); showStep(k);
     }).catch(function(e){ if(ticket!==_req)return; _saving=false; alert('저장 실패: '+(e.message||e)); });
@@ -16892,20 +17287,14 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
         if(typeof v['국비']==='boolean') _kb=v['국비']?1:0;
         DOC.consent.forEach(function(c,i){ if(c.w==='kb' && _kb!==1) return; _st.checked[i]=true; });
         cb(); return; }
-      // 이전에 저장해 둔 서명 찾기 : usersign → 사유서(sayu56)
-      return d.collection('usersign').doc(myId()).get().then(function(s2){ if(ticket!==_req||!canView())return;
-        if(s2.exists && (s2.data()||{}).sign){ _st.prevSign=s2.data().sign; cb(); return; }
-        return d.collection('sayu56').where('성명','==',u.name||'').get().then(function(qs){ if(ticket!==_req||!canView())return;
-          var pick='';
-          qs.forEach(function(doc){ var v=doc.data()||{};
-            var vb=String(v.생년월일||'').replace(/[^0-9]/g,'').slice(-6);
-            if(v.sign && (!b6 || vb===b6)) pick=v.sign;
-          });
-          if(pick) _st.prevSign=pick;
-          cb();
-        }).catch(function(){ cb(); });
-      });
-    }).catch(function(){ cb(); });
+      // 동일 기관·기수에서 보관한 서명만 사용합니다.
+      var loadingOwner=CBT_RECORDS.key(u);
+      if(window.usignLoad){window.usignLoad(function(sign){
+        if(!canView()||!window.CURR_USER||CBT_RECORDS.key(window.CURR_USER)!==loadingOwner)return;
+        if(sign)_st.prevSign=sign;cb();
+      });return;}
+      cb();
+    }).catch(function(){cb();});
   }
   function loadAdm(){ if(!isAdmin())return;
     var d=db(); var box=document.getElementById('ori58Adm'); if(!d||!box) return;
@@ -17502,9 +17891,11 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
       기관명:u.기관명||'',동의:true,date:today(),ts:new Date().toISOString(),sign:sign,
       국비:(_kb===1),구분:(_kb===1?'국비(내일배움카드)':'일반(자비)'),
       items:needIdx().map(function(i){ return DOC.consent[i].t; })};
+    var savingOwner=CBT_RECORDS.key(u);
     d.collection(COL).doc(myId()).set(rec,{merge:true}).then(function(){
+      if(!window.CURR_USER||CBT_RECORDS.key(window.CURR_USER)!==savingOwner)return;
       _st.sign=sign; _st.saved=rec;
-      try{ d.collection('usersign').doc(myId()).set({sign:sign,성명:rec.성명,생년월일:rec.생년월일,기수:'57기'},{merge:true}); }catch(e){}
+      try{ if(window.usignRemember)window.usignRemember(sign); }catch(e){}
       alert('동의가 저장되었습니다. 감사합니다!');
       var k=_step; render(); showStep(k);
     }).catch(function(e){ alert('저장 실패: '+(e.message||e)); });
@@ -17518,20 +17909,14 @@ window.CONCEPT_DAYS=[{"day":1,"chapterLabel":"1장 요양보호 대상자 이해
         if(typeof v['국비']==='boolean') _kb=v['국비']?1:0;
         DOC.consent.forEach(function(c,i){ if(c.w==='kb' && _kb!==1) return; _st.checked[i]=true; });
         cb(); return; }
-      // 이전에 저장해 둔 서명 찾기 : usersign → 사유서(sayu56)
-      return d.collection('usersign').doc(myId()).get().then(function(s2){
-        if(s2.exists && (s2.data()||{}).sign){ _st.prevSign=s2.data().sign; cb(); return; }
-        return d.collection('sayu56').where('성명','==',u.name||'').get().then(function(qs){
-          var pick='';
-          qs.forEach(function(doc){ var v=doc.data()||{};
-            var vb=String(v.생년월일||'').replace(/[^0-9]/g,'').slice(-6);
-            if(v.sign && (!b6 || vb===b6)) pick=v.sign;
-          });
-          if(pick) _st.prevSign=pick;
-          cb();
-        }).catch(function(){ cb(); });
-      });
-    }).catch(function(){ cb(); });
+      // 동일 기관·기수에서 보관한 서명만 사용합니다.
+      var loadingOwner=CBT_RECORDS.key(u);
+      if(window.usignLoad){window.usignLoad(function(sign){
+        if(!canView()||!window.CURR_USER||CBT_RECORDS.key(window.CURR_USER)!==loadingOwner)return;
+        if(sign)_st.prevSign=sign;cb();
+      });return;}
+      cb();
+    }).catch(function(){cb();});
   }
   function loadAdm(){
     var d=db(); var box=document.getElementById('oriAdm'); if(!d||!box) return;
@@ -17831,64 +18216,28 @@ body.dark-mode .sy-canv,body.dark-mode #ctSigCanvas{background:#ffffff!important
   window.USIGN = window.USIGN || '';
   function db(){ try{ return (window._FB&&_FB.db)?_FB.db:null; }catch(e){ return null; } }
   function u(){ return window.CURR_USER||{}; }
-  window.usignId=function(){
-    var x=u(); var g=String(x.기수||'').replace(/[^0-9]/g,'');
-    if(x['기관명']==='고려요양보호사교육원'&&g==='41')return ('main41_41기_'+(x.name||'')+'_'+String(x.birth||'').replace(/[^0-9]/g,'').slice(-6)).replace(/[\/\.\#\$\[\]\s]/g,'_');
-    return ((g?g+'기':'')+'_'+(x.name||'')+'_'+String(x.birth||'').replace(/[^0-9]/g,'').slice(-6)).replace(/[\/\.\#\$\[\]\s]/g,'_');
-  };
+  var signStorage=null;try{signStorage=window.localStorage;}catch(e){}
+  var signatures=CBT_SIGNATURES.create({db:db,getUser:u,storage:signStorage});
+  window.usignId=function(){return signatures.legacyId(u());};
   var _signOwner='';
-  function owner(){ var x=u(); return JSON.stringify([x.기관명||'',String(x.기수||''),x.name||'',x.birth||'']); }
-  function syncOwner(){ var k=owner(); if(_signOwner!==k){window.USIGN='';_signOwner=k;} return k; }
-  function lsKey(){ return 'cbt_usign_'+usignId(); }
-  window.usignRemember=function(sg){
-    if(!sg) return;
-    syncOwner(); var x=u(); if(!x.name||x.isGuest)return;
-    window.USIGN=sg; try{localStorage.setItem(lsKey(),sg);}catch(e){}
-    var d=db(); if(d) d.collection(COL).doc(usignId()).set({sign:sg,'성명':x.name,'생년월일':String(x.birth||'').replace(/[^0-9]/g,'').slice(-6),'기수':String(x.기수||''),'기관명':x['기관명']||'',ts:Date.now()},{merge:true}).catch(function(){});
+  function owner(){try{return signatures.canonicalId(u());}catch(e){return '';}}
+  function syncOwner(){var k=owner();if(_signOwner!==k){window.USIGN='';_signOwner=k;}return k;}
+  function lsKey(){return 'cbt_usign_'+owner();}
+  window.usignRemember=function(sign){
+    if(!sign)return Promise.resolve();var expected=syncOwner(),user=u();
+    if(!expected||user.isGuest)return Promise.resolve();
+    return signatures.remember(sign).then(function(result){
+      if(result.status!=='found')throw new Error('서명 보관 실패');
+      if(owner()===expected)window.USIGN=sign;return result;
+    }).catch(function(e){console.warn('서명 보관 실패');return {status:'unavailable'};});
   };
-  // cb(서명, 확인성공여부) — 확인성공여부=false 면 "서명이 없다"가 아니라 "확인 못 했다"(오프라인 등)
   window.usignLoad=function(cb){
-    var x=u(), requestOwner=syncOwner(); if(!x.name||x.isGuest){ cb&&cb('',true); return; }
-    var done=cb; cb=function(sg,ok){ if(owner()!==requestOwner){done&&done('',false);return;} done&&done(sg,ok); };
-    if(window.USIGN){ cb&&cb(window.USIGN,true); return; }
-    try{ var c=localStorage.getItem(lsKey()); if(c){ window.USIGN=c; cb&&cb(c,true); return; } }catch(e){}
-    var d=db(); if(!d){ cb&&cb('',false); return; }
-    var b6=String(x.birth||'').replace(/[^0-9]/g,'').slice(-6);
-    var failed=false;
-    function adopt(sg){
-      if(!sg || owner()!==requestOwner) return;
-      window.USIGN=sg; try{ localStorage.setItem(lsKey(),sg); }catch(e){}
-      try{ d.collection(COL).doc(usignId()).set({sign:sg,'성명':x.name||'','생년월일':b6,'기수':String(x['기수']||''),'기관명':x['기관명']||'',ts:Date.now()},{merge:true}).catch(function(){}); }catch(e){}
-    }
-    // 이름으로 훑어 생년월일 6자리가 같은 서명을 찾음 (문서ID 표기가 달라도 매칭)
-    function byName(col,next){
-      d.collection(col).where('성명','==',x.name||'').get().then(function(qs){
-        var pick='';
-        qs.forEach(function(doc){ var v=doc.data()||{};
-          var vb=String(v['생년월일']||'').replace(/[^0-9]/g,'').slice(-6);
-          var main=x['기관명']==='고려요양보호사교육원'&&String(x['기수']||'').replace(/\D/g,'')==='41';
-          if(main&&(v['기관명']!==x['기관명']||String(v['기수']||'').replace(/\D/g,'')!=='41'||vb!==b6))return;
-          if(v.sign && (!b6 || !vb || vb===b6)) pick=v.sign; });
-        next(pick);
-      }).catch(function(){ failed=true; next(''); });
-    }
-    d.collection(COL).doc(usignId()).get().then(function(s){
-      var sg=(s.exists&&(s.data()||{}).sign)||'';
-      if(sg){ adopt(sg); cb&&cb(sg,true); return; }
-      var consentSign=x.consent&&x.consent.agreed&&x.consent.signature;
-      if(consentSign){adopt(consentSign);cb&&cb(consentSign,true);return;}
-      byName(COL,function(a){
-        if(a){ adopt(a); cb&&cb(a,true); return; }
-        var main=x['기관명']==='고려요양보호사교육원'&&String(x['기수']||'').replace(/\D/g,'')==='41';
-        byName(main?'ori_main41':'ori57',function(b){
-          if(b){ adopt(b); cb&&cb(b,true); return; }
-          byName(main?'sayu_main41':'sayu56',function(c2){
-            if(c2){ adopt(c2); cb&&cb(c2,true); return; }
-            cb&&cb('', !failed);
-          });
-        });
-      });
-    }).catch(function(){ cb&&cb('',false); });
+    var expected=syncOwner(),user=u();if(!user.name||user.isGuest){cb&&cb('',true);return;}
+    signatures.load().then(function(result){
+      if(owner()!==expected){cb&&cb('',false);return;}
+      var sign=result.status==='found'?result.sign:'';if(sign)window.USIGN=sign;
+      cb&&cb(sign,result.status==='found'||result.status==='missing');
+    }).catch(function(){cb&&cb('',false);});
   };
   // 캔버스 표면을 항상 흰색으로 (투명/어두운 배경 방지)
   function usWhite(){
@@ -17923,7 +18272,7 @@ body.dark-mode .sy-canv,body.dark-mode #ctSigCanvas{background:#ffffff!important
   }
   window.usignClear=function(){ usWhite(); _dirty=false; _inkReset(); _guide(true); };
   window.usignCancel=function(){ document.getElementById('usignOv').classList.add('hidden'); var c=_cb; _cb=null; c&&c(''); };
-  window.usignSave=function(){
+  window.usignSave=async function(){
     if(!_dirty||!_cv){ alert('아직 아무것도 쓰지 않으셨어요.\n칸 안에 본인 이름을 크게 써 주세요.'); return; }
     // ★ 이름을 제대로 썼는지 확인 — 점 하나·짧은 낙서 방지
     var _r=_cv.getBoundingClientRect(), _cw=_r.width||300, _ch=_r.height||210;
@@ -17937,10 +18286,10 @@ body.dark-mode .sy-canv,body.dark-mode #ctSigCanvas{background:#ffffff!important
       var _tc=_t.getContext('2d'); _tc.fillStyle='#ffffff'; _tc.fillRect(0,0,_t.width,_t.height); _tc.drawImage(_cv,0,0);
       sg=_t.toDataURL('image/png');
     }catch(e){ sg=_cv.toDataURL('image/png'); }
-    syncOwner();
-    var x=u(), d=db();
-    window.USIGN=sg; try{ localStorage.setItem(lsKey(),sg); }catch(e){}
-    if(d){ d.collection(COL).doc(usignId()).set({sign:sg,성명:x.name||'',생년월일:String(x.birth||'').replace(/[^0-9]/g,'').slice(-6),기수:String(x.기수||''),'기관명':x['기관명']||'',ts:Date.now()},{merge:true}).catch(function(){}); }
+    var expected=syncOwner();
+    var result=await signatures.remember(sg);
+    if(result.status!=='found'||owner()!==expected){alert('서명을 저장하지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요.');return;}
+    window.USIGN=sg;
     document.getElementById('usignOv').classList.add('hidden');
     var c=_cb; _cb=null; c&&c(sg);
   };
@@ -17959,7 +18308,7 @@ body.dark-mode .sy-canv,body.dark-mode #ctSigCanvas{background:#ffffff!important
     document.getElementById('usignOv').classList.remove('hidden');
     setTimeout(initCanvas,40);
   };
-  window.usignEnsure=function(cb){ usignLoad(function(sg){ if(sg){ cb&&cb(sg); } else { usignAsk(cb); } }); };
+  window.usignEnsure=function(cb){ usignLoad(function(sg,ok){ if(sg){cb&&cb(sg);}else if(ok){usignAsk(cb);}else{alert('기존 서명을 확인하지 못했습니다. 인터넷 연결 후 다시 시도해 주세요.');cb&&cb('');} }); };
   // 홈 진입 시 서명 없으면 1회 등록 유도
   window.usignPrompt=function(){
     syncOwner();
@@ -17971,7 +18320,7 @@ body.dark-mode .sy-canv,body.dark-mode #ctSigCanvas{background:#ffffff!important
     if(_ov && !_ov.classList.contains('hidden')) return;              // 이미 서명창이 떠 있음
     if(window._usPromptBusy) return;                                  // ★ 확인 중 중복 실행 차단(창이 두 번 뜨던 원인)
     if(document.getElementById('syNoticeOv')){ setTimeout(window.usignPrompt,4000); return; }  // 사유서 안내창과 겹치지 않게
-    var k='cbt_usign_ask_'+usignId()+'_'+new Date().toISOString().slice(0,10);
+    var k='cbt_usign_ask_'+owner()+'_'+new Date().toISOString().slice(0,10);
     try{ if(localStorage.getItem(k)) return; }catch(e){}
     window._usPromptBusy=1;
     usignLoad(function(sg,ok){
@@ -20226,11 +20575,12 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
       course:_course,교육과정:window.C41.courses[_course].name,기관명:u.기관명||'',동의:true,date:today(),ts:new Date().toISOString(),sign:sign,
       국비:(_kb===1),구분:(_kb===1?'국비(내일배움카드)':'일반(자비)'),
       items:needIdx().map(function(i){ return DOC.consent[i].t; })};
+    var savingOwner=CBT_RECORDS.key(u);
     var ticket=_req, saveId=myId(); _saving=true;
     d.collection(COL).doc(saveId).set(rec,{merge:true}).then(function(){
-      if(ticket!==_req)return; _saving=false;
+      if(ticket!==_req||!window.CURR_USER||CBT_RECORDS.key(window.CURR_USER)!==savingOwner)return; _saving=false;
       _st.sign=sign; _st.saved=rec;
-      try{ d.collection('usersign').doc(signId()).set({sign:sign,성명:rec.성명,생년월일:rec.생년월일,기수:'41기',기관명:'고려요양보호사교육원'},{merge:true}); }catch(e){}
+      try{ if(window.usignRemember)window.usignRemember(sign); }catch(e){}
       alert('동의가 저장되었습니다. 감사합니다!');
       var k=_step; render(); showStep(k);
     }).catch(function(e){ if(ticket!==_req)return; _saving=false; alert('저장 실패: '+(e.message||e)); });
@@ -20247,20 +20597,14 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
         if(typeof v['국비']==='boolean') _kb=v['국비']?1:0;
         DOC.consent.forEach(function(c,i){ if(c.w==='kb' && _kb!==1) return; _st.checked[i]=true; });
         cb(); return; }
-      // 이전에 저장해 둔 서명 찾기 : usersign → 고려41기 사유서(sayu_main41)
-      return d.collection('usersign').doc(signId()).get().then(function(s2){ if(ticket!==_req||!canView())return;
-        if(s2.exists && (s2.data()||{}).sign){ _st.prevSign=s2.data().sign; cb(); return; }
-        return d.collection('sayu_main41').where('성명','==',u.name||'').get().then(function(qs){ if(ticket!==_req||!canView())return;
-          var pick='';
-          qs.forEach(function(doc){ var v=doc.data()||{};
-            var vb=String(v.생년월일||'').replace(/[^0-9]/g,'').slice(-6);
-            if(v.기관명==='고려요양보호사교육원' && String(v.기수||'').replace(/[^0-9]/g,'')==='41' && v.sign && b6 && vb===b6) pick=v.sign;
-          });
-          if(pick) _st.prevSign=pick;
-          cb();
-        }).catch(function(){ cb(); });
-      });
-    }).catch(function(){ cb(); });
+      // 동일 기관·기수에서 보관한 서명만 사용합니다.
+      var loadingOwner=CBT_RECORDS.key(u);
+      if(window.usignLoad){window.usignLoad(function(sign){
+        if(!canView()||!window.CURR_USER||CBT_RECORDS.key(window.CURR_USER)!==loadingOwner)return;
+        if(sign)_st.prevSign=sign;cb();
+      });return;}
+      cb();
+    }).catch(function(){cb();});
   }
   function loadAdm(){ if(!isAdmin())return;var ticket=_req;
     var d=db(); var box=document.getElementById('ori41Adm'); if(!d||!box) return;
@@ -20684,5 +21028,82 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
 <!-- INTERN58_END -->
 
 
+<script>
+/* Account removal preserves independently retained education documents. */
+(function(){
+  'use strict';
+  var removed=[], retained=[];
+  function same(a,b){try{return CBT_RECORDS.key(a)===CBT_RECORDS.key(b);}catch(e){return false;}}
+  function cacheReplace(u){var all=getAllUsers(),i=all.findIndex(function(x){return same(x,u);});if(i<0)all.push(u);else all[i]=u;setAllUsers(all);}
+  function cacheRemove(u){setAllUsers(getAllUsers().filter(function(x){return !same(x,u);}));}
+  function exact(inst,name,birth,cohort){
+    var matches=getAllUsers().filter(function(u){return u.기관명===inst&&u.name===name&&u.birth===birth&&(cohort==null||String(u.기수).replace(/\D/g,'')===String(cohort).replace(/\D/g,''));});
+    if(matches.length!==1)throw new Error('기수까지 일치하는 회원을 선택해 주세요.');return matches[0];
+  }
+  function refresh(){if(typeof renderInstList==='function')renderInstList();}
+  window.superDelUser=async function(inst,name,birth,cohort){
+    try{
+      var target=exact(inst,name,birth,cohort);
+      if(!confirm(target.기수+'기 '+target.name+'님의 이용 계정을 삭제하시겠어요?\n사유서·서명·동의서는 별도로 보관됩니다.'))return;
+      await CBT_RECORDS.archiveAndDelete(target,{reason:'administrator-removal'});cacheRemove(target);refresh();
+      altOpen('이용 계정을 삭제했습니다. 사유서·서명·동의서는 보관됩니다.',null);
+    }catch(e){altOpen('삭제하지 못했습니다. 기록을 보존한 상태입니다.\n'+e.message,null);}
+  };
+  window.bulkDelInstUsers=async function(inst){
+    var table=document.querySelector('.inst-users-tbl[data-inst="'+CSS.escape(inst)+'"]');
+    var checked=table?Array.from(table.querySelectorAll('.bulk-chk:checked')):[];
+    if(!checked.length){altOpen('삭제할 회원을 선택하세요.',null);return;}
+    if(!confirm('선택한 '+checked.length+'명의 이용 계정을 삭제하시겠어요?\n사유서·서명·동의서는 별도로 보관됩니다.'))return;
+    var ok=0,fail=0;
+    for(var cb of checked){try{var u=exact(inst,cb.dataset.name,cb.dataset.birth,cb.dataset.cohort);await CBT_RECORDS.archiveAndDelete(u,{reason:'administrator-bulk-removal'});cacheRemove(u);ok++;}catch(e){fail++;}}
+    refresh();altOpen(ok+'명 계정 삭제·서류 보관 완료'+(fail?' / '+fail+'명 실패(기존 계정 보존)':''),null);
+  };
+  var openOriginal=window.openUsrUp;
+  window.openUsrUp=function(){removed=[];return openOriginal.apply(this,arguments);};
+  window.delUser=function(index){var u=PENDING_USERS[index];if(!u)return;removed.push(u);PENDING_USERS.splice(index,1);renderUsrList();};
+  window.clearAllUsers=function(){
+    if(!ADMIN_USER||!confirm('이용 계정을 모두 삭제 대상으로 선택하시겠어요?\n저장을 누르면 삭제되며, 사유서·서명·동의서는 보관됩니다.'))return;
+    removed=removed.concat(PENDING_USERS);PENDING_USERS=[];renderUsrList();
+  };
+  window.saveUsrs=async function(){
+    if(!ADMIN_USER)return;
+    var ok=0,fail=0,remaining=[];
+    for(var u of removed){
+      if(PENDING_USERS.some(function(x){return same(x,u);}))continue;
+      try{await CBT_RECORDS.archiveAndDelete(u,{reason:'institution-administrator-removal'});cacheRemove(u);ok++;}catch(e){remaining.push(u);fail++;}
+    }
+    removed=remaining;
+    for(var i=0;i<PENDING_USERS.length;i++){
+      try{var saved=await CBT_RECORDS.enroll(Object.assign({},PENDING_USERS[i],{approved:true,approvedAt:PENDING_USERS[i].approvedAt||Date.now()}));PENDING_USERS[i]=saved;cacheReplace(saved);ok++;}catch(e){fail++;}
+    }
+    altOpen(ok+'건 저장 완료'+(fail?' / '+fail+'건 실패. 다시 저장해 주세요.':'\n삭제한 회원의 사유서·서명·동의서는 보관됩니다.'),fail?null:closeUsrUp);
+  };
+  window.cbtConsentProfiles=function(inst){
+    return CBT_RECORDS.listRetained(inst).then(function(rows){
+      retained=rows.map(function(r){return Object.assign({},r.profile,{consent:r.consent||r.profile.consent,_retained:true});});
+      var all=retained.slice();getAllUsers().filter(function(u){return u.기관명===inst;}).forEach(function(u){var i=all.findIndex(function(x){return same(x,u);});if(i<0)all.push(u);else all[i]=Object.assign({},all[i],u,{consent:u.consent||all[i].consent});});
+      return all;
+    });
+  };
+  window.cbtRetainedConsentProfiles=function(){return retained;};
+  window.viewArchivedConsents=async function(inst){
+    try{
+      await cbtConsentProfiles(inst);
+      var rows=retained.filter(function(u){return u.consent&&(u.consent.agreed||u.consent.legacy);});
+      document.getElementById('cvMdlTitle').textContent='보관 동의서 · '+inst;
+      var box=document.getElementById('cvMdlBody');box.replaceChildren();
+      var hint=document.createElement('p');hint.textContent='계정이 삭제·만료되어도 보관되는 원본 동의서입니다.';box.appendChild(hint);
+      if(!rows.length){var p=document.createElement('p');p.textContent='보관된 동의서가 없습니다.';box.appendChild(p);}
+      rows.sort(function(a,b){return Number(a.기수)-Number(b.기수)||a.name.localeCompare(b.name,'ko');}).forEach(function(u){
+        var b=document.createElement('button');b.type='button';b.style.cssText='display:block;width:100%;margin:8px 0;padding:12px;text-align:left;';
+        b.textContent=u.기수+'기 '+u.name+' · '+(u.consent.agreed?'동의서·서명 보기':'기존 회원 기록');
+        b.onclick=function(){viewSignature(inst,u.name,u.birth,u.기수);};box.appendChild(b);
+      });
+      document.getElementById('cvMdl').classList.add('open');
+    }catch(e){alert('보관 동의서를 불러오지 못했습니다. '+e.message);}
+  };
+})();
+
+</script>
 </body>
 </html>
