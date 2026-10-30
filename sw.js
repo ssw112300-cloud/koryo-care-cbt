@@ -1,5 +1,5 @@
 ﻿// K·CBT Service Worker — 진짜 오프라인 시험 가능 (그림문제 포함 전체 캐싱)
-const CACHE = 'koryo-cbt-v439-full';   // 암기노트: 빈칸·가리고 외우기 다시 누르면 가림 + 내 기록(진도) 표시
+const CACHE = 'koryo-cbt-v440-full';   // 암기노트: 빈칸·가리고 외우기 다시 누르면 가림 + 내 기록(진도) 표시
 
 // 핵심 파일 (즉시 캐시)
 const CORE_ASSETS = ['./', './index.html', './manifest.json'];
