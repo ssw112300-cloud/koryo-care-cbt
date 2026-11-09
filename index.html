@@ -21207,18 +21207,22 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
   }
   function finiteNumber(v){return (typeof v==='number'||(typeof v==='string'&&v.trim()!==''))&&Number.isFinite(Number(v))?Number(v):null;}
   function validTime(row){var n=finiteNumber(row&&row.ts);return n!==null&&n>0&&Number.isFinite(new Date(n).getTime())?n:null;}
+  function attemptKey(row){return JSON.stringify([row.exam,row.attemptId?String(row.attemptId):String(row.ts)]);}
   async function loadHistory(student,actor){
     var x=identity(student);assertScope(x.institution,actor);
     if(student.key!=null&&student.key!==canonicalKey(x))fail('선택한 학생의 식별정보가 일치하지 않습니다.');
     var keys=Array.from(new Set(Array.isArray(student.userKeys)?student.userKeys:aliases(student,x)));
     if(!keys.length||keys.some(function(k){return typeof k!=='string'||!keyMatches(k,x);}))fail('학생의 시험 기록 식별정보가 일치하지 않습니다.');
     var db=await database(),snapshots=await Promise.all(keys.map(function(k){return db.collection('history').where('userKey','==',k).get({source:'server'});}));
-    var byId=Object.create(null),duplicates=0,invalid=0;
+    var byId=Object.create(null),sources=Object.create(null),duplicates=0,invalid=0;
     snapshots.forEach(function(snapshot,index){
       documents(snapshot).forEach(function(doc){
         var r=doc.data();
         if(!r||r.userKey!==keys[index]||!keyMatches(r.userKey,x)||typeof r.exam!=='string'||!r.exam.trim()||validTime(r)===null){invalid++;return;}
-        var id=JSON.stringify([r.exam,r.attemptId?String(r.attemptId):String(r.ts)]),row=copy(r);
+        var id=attemptKey(r),row=copy(r);
+        var source={documentId:typeof doc.id==='string'&&doc.id?doc.id:null,sourceUserKey:r.userKey,exam:r.exam,attemptId:r.attemptId||null,ts:r.ts};
+        var sourceKey=source.documentId!==null?'doc:'+source.documentId:'missing:'+stable(source);
+        if(!sources[sourceKey]||stable(source)>stable(sources[sourceKey]))sources[sourceKey]=source;
         if(byId[id]){
           duplicates++;
           // Choose by content rather than query completion order when old aliases conflict.
@@ -21228,7 +21232,8 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
     });
     var rows=Object.keys(byId).map(function(k){return byId[k];});
     rows.sort(function(a,b){return validTime(a)-validTime(b)||a.exam.localeCompare(b.exam)||stable(a).localeCompare(stable(b));});
-    return {rows:rows,duplicates:duplicates,invalid:invalid};
+    var sourceDocuments=Object.keys(sources).map(function(k){return sources[k];}).sort(function(a,b){return stable(a).localeCompare(stable(b));});
+    return {rows:rows,duplicates:duplicates,invalid:invalid,sourceDocuments:sourceDocuments};
   }
   function score(row){
     var t=finiteNumber(row.t),saved=finiteNumber(row.sc),co=finiteNumber(row.co);
@@ -21255,7 +21260,39 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
     var s=value(input);if(/^[\s\u0000-\u001f]*[=+\-@]/.test(s))s="'"+s;
     return '"'+s.replace(/"/g,'""')+'"';
   }
-  return {canonicalKey:canonicalKey,identity:identity,authorized:authorized,loadStudents:loadStudents,loadHistory:loadHistory,buildGrowth:buildGrowth,csvCell:csvCell};
+  function buildExport(student,historyResult,settings){
+    settings=settings||{};historyResult=historyResult||{};
+    var x=identity(student),studentKey=canonicalKey(x);assertScope(x.institution,settings.actor);
+    if(student.key!=null&&student.key!==studentKey)fail('선택한 학생의 식별정보가 일치하지 않습니다.');
+    var filter=settings.examFilter==null||settings.examFilter===''?null:settings.examFilter;
+    if(filter!==null&&typeof filter!=='string')fail('내보낼 시험을 확인해 주세요.');
+    if(!Array.isArray(historyResult.rows))fail('서버에서 조회한 시험 기록이 필요합니다.');
+    var at=settings.exportedAt==null?new Date():new Date(settings.exportedAt);
+    if(!Number.isFinite(at.getTime()))fail('내보내기 일시를 확인해 주세요.');
+    var sourceIndex=Object.create(null);
+    (Array.isArray(historyResult.sourceDocuments)?historyResult.sourceDocuments:[]).forEach(function(ref){
+      if(!ref||typeof ref.sourceUserKey!=='string'||!keyMatches(ref.sourceUserKey,x))fail('시험 기록의 원본 학생 정보가 일치하지 않습니다.');
+      if(typeof ref.exam!=='string'||!ref.exam.trim()||validTime(ref)===null)fail('시험 기록의 원본 정보가 올바르지 않습니다.');
+      var key=attemptKey(ref),entry=sourceIndex[key]||(sourceIndex[key]={ids:[],keys:[]});
+      if(typeof ref.documentId==='string'&&ref.documentId&&entry.ids.indexOf(ref.documentId)<0)entry.ids.push(ref.documentId);
+      if(entry.keys.indexOf(ref.sourceUserKey)<0)entry.keys.push(ref.sourceUserKey);
+    });
+    var records=[];
+    historyResult.rows.forEach(function(row){
+      if(!row||typeof row.userKey!=='string'||!keyMatches(row.userKey,x))fail('내보낼 시험 기록의 학생 정보가 일치하지 않습니다.');
+      if(typeof row.exam!=='string'||!row.exam.trim()||validTime(row)===null)fail('내보낼 시험 기록을 확인해 주세요.');
+      if(filter!==null&&row.exam!==filter)return;
+      var source=sourceIndex[attemptKey(row)]||{ids:[],keys:[]},sourceKeys=source.keys.slice();
+      if(sourceKeys.indexOf(row.userKey)<0)sourceKeys.push(row.userKey);
+      var record={sourceDocumentIds:source.ids.slice().sort(),sourceUserKeys:sourceKeys.sort(),sourceUserKey:row.userKey,exam:row.exam,attemptId:row.attemptId||null,ts:row.ts};
+      ['sc','co','wr','sk','t'].forEach(function(field){if(Object.prototype.hasOwnProperty.call(row,field)&&row[field]!==undefined)record[field]=copy(row[field]);});
+      records.push(record);
+    });
+    return {schema:'koryo-cbt-history-v1',exportScope:{institution:x.institution,studentKey:studentKey,student:x,examFilter:filter,allRetainedRecordsForStudent:filter===null,source:'server',lifetimeCompleteness:'unknown',retention:'retained-server-records-only'},
+      exportedAt:at.toISOString(),scoring:'recorded-at-submission',originalQuestionSnapshotIncluded:false,count:records.length,
+      deduplication:{duplicates:Math.max(0,Number(historyResult.duplicates)||0),invalid:Math.max(0,Number(historyResult.invalid)||0),scope:'all-loaded-records'},records:records};
+  }
+  return {canonicalKey:canonicalKey,identity:identity,authorized:authorized,loadStudents:loadStudents,loadHistory:loadHistory,buildGrowth:buildGrowth,buildExport:buildExport,csvCell:csvCell};
 });
 
 </script>
@@ -21285,7 +21322,7 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
 <script>
 (function(){
   'use strict';
-  var state={open:false,actor:null,institution:'',students:[],selected:null,rows:[],growth:null,exam:'',order:'oldest',page:0,loaded:false,ticket:0,timer:null};
+  var state={open:false,actor:null,institution:'',students:[],selected:null,rows:[],historyResult:null,growth:null,exam:'',order:'oldest',page:0,loaded:false,ticket:0,timer:null};
   var PAGE=40;
   function el(id){return document.getElementById(id);}
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -21293,7 +21330,7 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
   function same(a,b){return !!a&&!!b&&a.super===b.super&&a.id===b.id&&a.institution===b.institution;}
   function allowed(){var a=actor();return state.open&&same(a,state.actor)&&window.CBT_LEARNING_RECORDS.authorized(state.institution,a);}
   function status(text,error){el('alStatus').hidden=!text;el('alStatus').className='al-status'+(error?' al-error':'');el('alStatus').textContent=text||'';}
-  function resetReport(){state.ticket++;state.selected=null;state.rows=[];state.growth=null;state.loaded=false;state.exam='';state.page=0;el('alReport').innerHTML='';}
+  function resetReport(){state.ticket++;state.selected=null;state.rows=[];state.historyResult=null;state.growth=null;state.loaded=false;state.exam='';state.page=0;el('alReport').innerHTML='';}
   function guard(ticket,student){return allowed()&&ticket===state.ticket&&(!student||(state.selected&&state.selected.key===student.key));}
   function errorMessage(e){return '기록을 불러오지 못했습니다. 인터넷 연결과 관리자 로그인을 확인한 뒤 새로고침해 주세요.'+(e&&e.message?' ('+e.message+')':'');}
   function instOptions(selected){var list=[];if(state.actor.super){(typeof getAdmins==='function'?getAdmins():[]).forEach(function(a){if(a.기관명)list.push(String(a.기관명));});(typeof getAllUsers==='function'?getAllUsers():[]).forEach(function(u){if(u.기관명)list.push(String(u.기관명));});if(selected)list.push(selected);}else list=[state.actor.institution];return Array.from(new Set(list)).sort();}
@@ -21327,7 +21364,7 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
   async function select(key){
     if(!allowed()){close();return;}resetReport();var student=state.students.find(function(s){return s.key===key;});
     if(!student){status('선생님을 선택해 주세요.');return;}state.selected=student;var ticket=state.ticket;status(student.name+' 선생님의 전체 시험 기록을 불러오는 중…');
-    try{var result=await histWait(CBT_LEARNING_RECORDS.loadHistory(student,state.actor));if(!guard(ticket,student))return;state.rows=result.rows;state.growth=CBT_LEARNING_RECORDS.buildGrowth(result.rows);state.loaded=true;state.duplicates=result.duplicates;state.invalid=result.invalid+state.growth.invalid;state.exam='';state.order='oldest';state.page=0;status('');render();}
+    try{var result=await histWait(CBT_LEARNING_RECORDS.loadHistory(student,state.actor));if(!guard(ticket,student))return;state.rows=result.rows;state.historyResult=result;state.growth=CBT_LEARNING_RECORDS.buildGrowth(result.rows);state.loaded=true;state.duplicates=result.duplicates;state.invalid=result.invalid+state.growth.invalid;state.exam='';state.order='oldest';state.page=0;status('');render();}
     catch(e){if(guard(ticket,student))status(errorMessage(e),true);}
   }
   async function reload(){if(!allowed()){close();return;}if(state.selected)await select(state.selected.key);else await loadStudents();}
@@ -21366,7 +21403,7 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
     if(!allowed()||!state.loaded||!state.selected)return;var s=state.selected,rows=visibleRows(),growth=CBT_LEARNING_RECORDS.buildGrowth(rows),first=growth.first,last=growth.last;
     var h='<h1 class="al-print-title">학습 기록 · 성장 분석</h1><div class="al-person"><h2>'+esc(s.cohort+'기 '+s.name)+' 선생님'+(s.archived?' <small>· 보관 계정</small>':'')+'</h2><p class="al-note">'+esc(s.institution)+' · 전체 제출 '+state.growth.attempts.length+'건 · 조회 '+esc(date(Date.now()))+'</p></div>';
     if(!state.growth.attempts.length){el('alReport').innerHTML=h+'<section class="al-section al-empty">'+(state.rows.length?'저장된 기록은 있으나 유효한 성적 정보를 읽을 수 없습니다. 제외한 기록 '+state.invalid+'건입니다.':'서버에 저장된 시험 제출 기록이 없습니다. 미제출 시험이나 기기에서 서버로 전송되지 않은 기록은 표시되지 않습니다.')+'</section>';return;}
-    h+='<div class="al-toolbar"><label>시험 <select onchange="CBT_ADMIN_LEARNING.exam(this.value)"><option value="">전체 시험</option>'+state.growth.comparisons.map(function(c){return '<option value="'+esc(c.exam)+'"'+(c.exam===state.exam?' selected':'')+'>'+esc(label(c.exam))+' ('+c.count+'건)</option>';}).join('')+'</select></label><div class="al-actions"><button onclick="CBT_ADMIN_LEARNING.csv()">기록 CSV 받기</button><button onclick="CBT_ADMIN_LEARNING.print()">인쇄 · PDF</button></div></div>';
+    h+='<div class="al-toolbar"><label>시험 <select onchange="CBT_ADMIN_LEARNING.exam(this.value)"><option value="">전체 시험</option>'+state.growth.comparisons.map(function(c){return '<option value="'+esc(c.exam)+'"'+(c.exam===state.exam?' selected':'')+'>'+esc(label(c.exam))+' ('+c.count+'건)</option>';}).join('')+'</select></label><div class="al-actions"><button onclick="CBT_ADMIN_LEARNING.csv()">기록 CSV 받기</button><button onclick="CBT_ADMIN_LEARNING.json()" title="다른 관리자료에 연결할 수 있도록 원래 응시 식별정보와 당시 성적을 보존합니다.">연동용 기록 받기</button><button onclick="CBT_ADMIN_LEARNING.print()">인쇄 · PDF</button></div></div>';
     h+='<div class="al-cards"><div class="al-card"><span>첫 기록 점수</span><strong>'+score(first&&first.score)+'</strong><small>'+esc(first?date(first.ts):'')+'</small></div><div class="al-card"><span>최근 점수</span><strong>'+score(last&&last.score)+'</strong><small>'+esc(last?date(last.ts):'')+'</small></div><div class="al-card'+(growth.delta>0?' positive':'')+'"><span>처음 대비 변화</span><strong>'+delta(growth.delta)+'</strong></div><div class="al-card"><span>선택한 시험 제출</span><strong>'+rows.length+'건</strong><small>전체 '+state.growth.comparisons.length+'개 시험</small></div></div>';
     h+='<p class="al-note">당시 저장된 점수입니다. '+(state.exam?'같은 시험의 첫 제출과 최근 제출을 비교합니다.':'전체 시험에는 난이도가 다른 시험과 재응시가 섞여 있습니다. 같은 시험끼리 비교하려면 시험을 선택하세요.')+'</p>';
     h+='<section class="al-section"><h3>첫 기록부터 최근까지</h3>'+chart(rows)+'</section>';
@@ -21384,10 +21421,18 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
     var rows=[['기관','기수','이름','응시일시(한국시간)','시험','당시점수(100점)','정답수','문항수']];visibleRows().forEach(function(r){rows.push([s.institution,s.cohort,s.name,date(r.ts),label(r.exam),r.score==null?'':r.score,r.co==null?'':r.co,r.t==null?'':r.t]);});
     var blob=new Blob(['\ufeff'+rows.map(function(r){return r.map(cell).join(',');}).join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(s.cohort+'기_'+s.name+'_시험기록.csv').replace(/[\\/:*?"<>|]/g,'_');a.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);
   }
+  function json(){
+    if(!allowed()||!state.loaded||!state.selected||!state.historyResult)return;
+    try{
+      var packet=CBT_LEARNING_RECORDS.buildExport(state.selected,state.historyResult,{actor:state.actor,examFilter:state.exam||null,exportedAt:new Date().toISOString()});
+      var blob=new Blob([JSON.stringify(packet,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url;a.download=(state.selected.cohort+'기_'+state.selected.name+'_CBT기록.json').replace(/[\\/:*?"<>|]/g,'_');a.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);
+    }catch(e){status('연동용 기록을 만들지 못했습니다. '+(e.message||e),true);}
+  }
   function print(){if(!allowed()||!state.loaded)return;render(true);document.body.classList.add('al-printing');document.querySelectorAll('#alReport details').forEach(function(d){d.open=true;});window.print();}
   window.addEventListener('afterprint',function(){document.body.classList.remove('al-printing');if(allowed()&&state.loaded)render();});
   document.addEventListener('keydown',function(e){if(state.open&&e.key==='Escape')close();});
-  window.CBT_ADMIN_LEARNING={open:open,close:close,changeInstitution:changeInstitution,filter:filter,select:select,reload:reload,exam:changeExam,csv:csv,print:print,order:function(v){if(!allowed())return close();state.order=v==='newest'?'newest':'oldest';state.page=0;render();},page:function(n){if(!allowed())return close();state.page=Math.max(0,state.page+n);render();}};
+  window.CBT_ADMIN_LEARNING={open:open,close:close,changeInstitution:changeInstitution,filter:filter,select:select,reload:reload,exam:changeExam,csv:csv,json:json,print:print,order:function(v){if(!allowed())return close();state.order=v==='newest'?'newest':'oldest';state.page=0;render();},page:function(n){if(!allowed())return close();state.page=Math.max(0,state.page+n);render();}};
 })();
 </script>
 <!-- ADMIN_LEARNING_DASHBOARD_END -->
