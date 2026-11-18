@@ -2511,6 +2511,7 @@ window.signatureWhite = function(canvas, context){
     <div class="dash-actions">
       <span id="sdMeName"></span>
       <button class="dash-btn" onclick="CBT_ADMIN_LEARNING.open()">📈 학습 기록</button>
+      <button class="dash-btn" onclick="CBT_CERTIFICATE.open()">📄 수강확인서</button>
       <button class="dash-btn" onclick="internOpen()">📅 실습일정</button>
       <button class="dash-btn" onclick="sayuOpenAdmin('고려요양보호사교육원 원주점')">📄 원주점 사유서</button>
       <button class="dash-btn" onclick="sayuOpenAdmin('고려요양보호사교육원')">📄 횡성 41기 사유서</button>
@@ -2577,6 +2578,7 @@ window.signatureWhite = function(canvas, context){
     <div class="usrUp-h">
       <h3 id="usrUpTitle">사용자 관리</h3>
       <button onclick="CBT_ADMIN_LEARNING.open()" style="margin-right:6px">📈 학습 기록</button>
+      <button onclick="CBT_CERTIFICATE.open()" style="margin-right:6px">📄 수강확인서</button>
       <button onclick="oriAdminOpen()" style="margin-right:6px">📋 57기 오리엔테이션</button>
       <button onclick="ori58Open()" style="margin-right:6px">📋 58기 오리엔테이션</button>
       <button onclick="sayuOpenAdmin()" style="margin-right:6px">📄 사유서</button>
@@ -3556,6 +3558,7 @@ function showSuperDash(){
 }
 function hideSuperDash(){document.getElementById('superDash').classList.remove('open');}
 function superLogout(){
+  if(window.CBT_CERTIFICATE)window.CBT_CERTIFICATE.close();
   if(window.CBT_ADMIN_LEARNING)window.CBT_ADMIN_LEARNING.close();
   if(typeof window.intern58Reset==='function')window.intern58Reset();
   SUPER_USER=null;safeRemoveItem('cbt_super_curr');
@@ -3652,6 +3655,7 @@ function renderInstUsers(instName,users){
   <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
     <button onclick="superDownloadSample()" style="flex:1;min-width:90px;background:#eef2f7;color:#3a4d6b;border:1px solid #c8d3e0;padding:5px;border-radius:4px;cursor:pointer;font-size:11px;">📋 엑셀 샘플 양식</button>
     <button onclick="CBT_ADMIN_LEARNING.open('${safeInst}')" style="flex:1;background:#edf4fc;border:1px solid #b9cce2;padding:5px;cursor:pointer;">📈 학습 기록</button>
+    <button data-inst="${escHtml(instName)}" onclick="CBT_CERTIFICATE.open(this.getAttribute('data-inst'))" style="flex:1;background:#eaf4f5;border:1px solid #b9d5d8;padding:5px;cursor:pointer;">📄 수강확인서</button>
     <button onclick="viewArchivedConsents('${safeInst}')" style="flex:1;background:#f5f1ff;border:1px solid #d6c8ee;padding:5px;cursor:pointer;">보관 동의서</button>
     <button onclick="downloadConsentCsv('${safeInst}')" style="flex:1;min-width:90px;background:#fff7e8;color:#c66200;border:1px solid #ffe5b4;padding:5px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">📊 동의 CSV</button>
     <button onclick="downloadConsentPdfAll('${safeInst}')" style="flex:1;min-width:90px;background:#e6f0fa;color:#1f4e79;border:1px solid #c0d0e0;padding:5px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;">📄 동의 PDF</button>
@@ -3704,7 +3708,7 @@ function renderInstUsers(instName,users){
       <td><b>${escHtml(u.name)}</b></td>
       <td>${escHtml(u.birth)}</td>
       <td style="text-align:center;">${consentCell}</td>
-      <td style="text-align:center;white-space:nowrap;">${apBtn}${delBtn}</td>
+      <td style="text-align:center;white-space:nowrap;">${apBtn}${delBtn}<br><button type="button" data-inst="${escHtml(instName)}" data-cohort="${escHtml(u.기수||'')}" data-name="${escHtml(u.name)}" data-birth="${escHtml(u.birth)}" onclick="CBT_CERTIFICATE.openFromRow(this)" style="margin-top:4px;padding:4px;border:1px solid #bdd0dd;border-radius:4px;background:#edf5fa;cursor:pointer;">수강확인서</button></td>
     </tr>`;
   });
   h+='</tbody></table></div>';
@@ -4039,6 +4043,7 @@ function deleteInst(adminId){
 
 // === 기관 관리자 로그아웃 ===
 function adminLogout(){
+  if(window.CBT_CERTIFICATE)window.CBT_CERTIFICATE.close();
   if(window.CBT_ADMIN_LEARNING)window.CBT_ADMIN_LEARNING.close();
   if(typeof window.intern58Reset==='function')window.intern58Reset();
   ADMIN_USER=null;
@@ -4594,7 +4599,7 @@ function renderUsrList(){
   let h='<div class="cohort-scope">'+cohortFilterHtml(PENDING_USERS)+'<table><thead><tr><th style="width:60px;">상태</th><th>기수</th><th>이름</th><th>생년월일</th><th style="width:60px;text-align:center;">삭제</th></tr></thead><tbody>';
   PENDING_USERS.forEach((u,idx)=>{
     const badge=u.approved?'<span class="badge-approved">✓ 승인</span>':'<span class="badge-pending">⏳ 대기</span>';
-    h+=`<tr data-cohort="${escHtml(u.기수||'')}"><td>${badge}</td><td>${escHtml(u.기수||'')}</td><td><b>${escHtml(u.name)}</b></td><td>${escHtml(u.birth)}</td><td style="text-align:center;"><button onclick="delUser(${idx})" style="background:#fce4e4;border:none;color:#e53935;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px;">삭제</button></td></tr>`;
+    h+=`<tr data-cohort="${escHtml(u.기수||'')}"><td>${badge}</td><td>${escHtml(u.기수||'')}</td><td><b>${escHtml(u.name)}</b></td><td>${escHtml(u.birth)}</td><td style="text-align:center;"><button onclick="delUser(${idx})" style="background:#fce4e4;border:none;color:#e53935;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px;">삭제</button><br><button type="button" data-inst="${escHtml(ADMIN_USER.기관명)}" data-cohort="${escHtml(u.기수||'')}" data-name="${escHtml(u.name)}" data-birth="${escHtml(u.birth)}" onclick="CBT_CERTIFICATE.openFromRow(this)" style="margin-top:4px;padding:4px;border:1px solid #bdd0dd;border-radius:4px;background:#edf5fa;cursor:pointer;">수강확인서</button></td></tr>`;
   });
   h+='</tbody></table></div>';
   list.innerHTML=h;
@@ -21596,6 +21601,741 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
 })();
 </script>
 <!-- ADMIN_LEARNING_DASHBOARD_END -->
+<!-- ENROLLMENT_CERTIFICATE_START -->
+<script id="enrollment-certificate-crypto">
+/* Institution issuer profiles: authenticated encryption only; no persistence or logging. */
+(function(root,factory){
+  'use strict';
+  var api=factory(root);
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  root.CERTIFICATE_VAULT=api;
+})(typeof window==='undefined'?globalThis:window,function(root){
+  'use strict';
+  var SCHEMA=1,ITERATIONS=600000,MAX_PLAINTEXT=512*1024,MAX_ASSET=240000;
+  var PURPOSE='koryo-certificate-issuer-profile',ID_DOMAIN='koryo-certificate-vault:institution:v1\u0000';
+  var FIELDS=['schema','institutionHash','revision','updatedAt','salt','iv','ciphertext'];
+  var PROFILE_FIELDS=['institution','directorName','name','seal','signature','revision','updatedAt'];
+  function fail(message,code){var error=new Error(message);error.code=code||'VAULT_VALIDATION';throw error;}
+  function plain(value){if(!value||typeof value!=='object'||Array.isArray(value))return false;var p=Object.getPrototypeOf(value);return p===Object.prototype||p===null;}
+  function exactFields(value,allowed,required,label){
+    if(!plain(value)||Object.keys(value).some(function(k){return allowed.indexOf(k)<0;})||required.some(function(k){return !Object.prototype.hasOwnProperty.call(value,k);}))fail(label+' 형식을 확인해 주세요.');
+  }
+  function runtime(){
+    if(!root.crypto||!root.crypto.subtle||typeof root.crypto.getRandomValues!=='function'||typeof root.TextEncoder!=='function'||typeof root.TextDecoder!=='function'||typeof root.atob!=='function'||typeof root.btoa!=='function')fail('이 브라우저에서는 안전한 기관 정보 암호화를 사용할 수 없습니다.','VAULT_UNAVAILABLE');
+    return root.crypto;
+  }
+  function encode(value){return new root.TextEncoder().encode(value);}
+  function institution(value){
+    if(typeof value!=='string'||!value||value!==value.trim()||value.length>120||/[\u0000-\u001f\u007f]/.test(value))fail('교육원 정보를 정확히 확인해 주세요.');
+    return value;
+  }
+  function revision(value){if(typeof value!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value))fail('기관 정보의 수정 이력을 확인해 주세요.');return value;}
+  function timestamp(value){
+    if(typeof value!=='string'||value.length>40||!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/.test(value))fail('기관 정보의 변경 시각을 확인해 주세요.');
+    var date=value.slice(0,10),ms=Date.parse(date+'T00:00:00Z');
+    if(!isFinite(ms)||new Date(ms).toISOString().slice(0,10)!==date||!isFinite(Date.parse(value))||/[+-]14:(?!00)/.test(value))fail('기관 정보의 변경 시각을 확인해 주세요.');
+    return value;
+  }
+  function phrase(value){
+    if(typeof value!=='string'||value.length<12||value.length>400)fail('공유 암호는 12자 이상 200자 이하로 입력해 주세요.');
+    var length=Array.from(value).length;
+    if(length<12||length>200||!value.trim())fail('공유 암호는 12자 이상 200자 이하로 입력해 주세요.');
+    return value;
+  }
+  function toBase64(bytes){
+    var chunks=[];
+    for(var i=0;i<bytes.length;i+=32768)chunks.push(String.fromCharCode.apply(null,bytes.subarray(i,i+32768)));
+    return root.btoa(chunks.join(''));
+  }
+  function fromBase64(value,label,expected,maxBytes){
+    runtime();
+    var limit=expected||maxBytes;
+    if(typeof value!=='string'||!value||value.length%4!==0||value.length>Math.ceil(limit/3)*4||!/^[A-Za-z0-9+/]+={0,2}$/.test(value))fail(label+' 형식을 확인해 주세요.');
+    var decoded;
+    try{decoded=root.atob(value);}catch(error){fail(label+' 형식을 확인해 주세요.');}
+    if((expected&&decoded.length!==expected)||(!expected&&decoded.length>maxBytes)||root.btoa(decoded)!==value)fail(label+' 형식을 확인해 주세요.');
+    var bytes=new Uint8Array(decoded.length);
+    for(var i=0;i<decoded.length;i++)bytes[i]=decoded.charCodeAt(i);
+    return bytes;
+  }
+  function asset(value,label){
+    if(value===undefined||value==='')return '';
+    if(typeof value!=='string'||value.length>MAX_ASSET)fail(label+' 이미지 크기와 형식을 확인해 주세요.');
+    var match=/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+    if(!match)fail(label+'은 PNG·JPEG·WebP 이미지로 등록해 주세요.');
+    var b=fromBase64(match[2],label,0,MAX_ASSET),ok=false;
+    if(match[1]==='png')ok=b.length>=8&&b.subarray(0,8).join(',')==='137,80,78,71,13,10,26,10';
+    else if(match[1]==='jpeg')ok=b.length>=3&&b[0]===255&&b[1]===216&&b[2]===255;
+    else ok=b.length>=12&&String.fromCharCode.apply(null,b.subarray(0,4))==='RIFF'&&String.fromCharCode.apply(null,b.subarray(8,12))==='WEBP';
+    if(!ok)fail(label+'의 이미지 데이터와 형식이 일치하지 않습니다.');
+    return value;
+  }
+  function profile(value){
+    exactFields(value,PROFILE_FIELDS,['institution','revision','updatedAt'],'기관 정보');
+    var name=value.directorName===undefined?value.name:value.directorName;
+    if(typeof name!=='string'||!name||name!==name.trim()||name.length>80||/[\u0000-\u001f\u007f]/.test(name))fail('기관장 성함을 정확히 입력해 주세요.');
+    if(value.name!==undefined&&(typeof value.name!=='string'||value.name!==name))fail('기관장 성함 정보가 일치하지 않습니다.');
+    return {institution:institution(value.institution),directorName:name,seal:asset(value.seal,'직인'),signature:asset(value.signature,'기관장 서명'),revision:revision(value.revision),updatedAt:timestamp(value.updatedAt)};
+  }
+  async function idFor(value){
+    var c=runtime(),bytes=encode(ID_DOMAIN+institution(value)),hash=new Uint8Array(await c.subtle.digest('SHA-256',bytes));
+    return Array.from(hash).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+  }
+  function envelopeShape(value){
+    exactFields(value,FIELDS,FIELDS,'암호화 자료');
+    if(value.schema!==SCHEMA||typeof value.institutionHash!=='string'||!/^[a-f0-9]{64}$/.test(value.institutionHash))fail('암호화 자료의 기관·버전을 확인해 주세요.');
+    revision(value.revision);timestamp(value.updatedAt);
+    fromBase64(value.salt,'암호화 소금값',16);fromBase64(value.iv,'암호화 초기값',12);
+    var ciphertext=fromBase64(value.ciphertext,'암호화 본문',0,MAX_PLAINTEXT+16);
+    if(ciphertext.length<=16)fail('암호화 본문을 확인해 주세요.');
+    return {schema:SCHEMA,institutionHash:value.institutionHash,revision:value.revision,updatedAt:value.updatedAt,salt:value.salt,iv:value.iv,ciphertext:value.ciphertext};
+  }
+  async function validate(value,inst){
+    var envelope=envelopeShape(value),hash=await idFor(inst);
+    if(envelope.institutionHash!==hash)fail('선택한 기관과 암호화 자료가 일치하지 않습니다.','VAULT_INSTITUTION');
+    return envelope;
+  }
+  function aad(envelope){
+    // Bind every non-secret header; the IV is authenticated by AES-GCM itself.
+    return encode(JSON.stringify([PURPOSE,envelope.schema,envelope.institutionHash,envelope.revision,envelope.updatedAt,envelope.salt]));
+  }
+  function checkKey(key){
+    if(!key||Object.prototype.toString.call(key)!=='[object CryptoKey]'||key.type!=='secret'||key.extractable!==false||!key.algorithm||key.algorithm.name!=='AES-GCM'||key.algorithm.length!==256||!Array.isArray(key.usages)||key.usages.length!==2||key.usages.indexOf('encrypt')<0||key.usages.indexOf('decrypt')<0)fail('이 기기의 암호화 키를 다시 열어 주세요.','VAULT_KEY');
+    return key;
+  }
+  async function derive(passphrase,salt){
+    var c=runtime(),raw=encode(phrase(passphrase)),material;
+    try{material=await c.subtle.importKey('raw',raw,'PBKDF2',false,['deriveKey']);}finally{raw.fill(0);}
+    return c.subtle.deriveKey({name:'PBKDF2',salt:fromBase64(salt,'암호화 소금값',16),iterations:ITERATIONS,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+  }
+  async function seal(value,key,salt){
+    var c=runtime(),p=profile(value);checkKey(key);fromBase64(salt,'암호화 소금값',16);
+    var plaintext=encode(JSON.stringify(p));
+    if(plaintext.length>MAX_PLAINTEXT){plaintext.fill(0);fail('기관 정보는 암호화 전 512KiB 이하여야 합니다.');}
+    var envelope={schema:SCHEMA,institutionHash:await idFor(p.institution),revision:p.revision,updatedAt:p.updatedAt,salt:salt,iv:toBase64(c.getRandomValues(new Uint8Array(12))),ciphertext:''};
+    try{envelope.ciphertext=toBase64(new Uint8Array(await c.subtle.encrypt({name:'AES-GCM',iv:fromBase64(envelope.iv,'암호화 초기값',12),additionalData:aad(envelope),tagLength:128},key,plaintext)));}
+    catch(error){fail('기관 정보를 암호화하지 못했습니다.','VAULT_CRYPTO');}
+    finally{plaintext.fill(0);}
+    return envelope;
+  }
+  async function create(value,passphrase){
+    var c=runtime(),p=profile(value);phrase(passphrase);
+    // Check the complete UTF-8 JSON limit before an expensive password derivation.
+    var bytes=encode(JSON.stringify(p));
+    if(bytes.length>MAX_PLAINTEXT){bytes.fill(0);fail('기관 정보는 암호화 전 512KiB 이하여야 합니다.');}
+    bytes.fill(0);
+    var salt=toBase64(c.getRandomValues(new Uint8Array(16))),key=await derive(passphrase,salt),envelope=await seal(p,key,salt);
+    return {envelope:envelope,key:key,salt:salt};
+  }
+  async function open(value,key,inst){
+    var c=runtime(),envelope=await validate(value,inst);checkKey(key);
+    var decoded;
+    try{decoded=new Uint8Array(await c.subtle.decrypt({name:'AES-GCM',iv:fromBase64(envelope.iv,'암호화 초기값',12),additionalData:aad(envelope),tagLength:128},key,fromBase64(envelope.ciphertext,'암호화 본문',0,MAX_PLAINTEXT+16)));}
+    catch(error){fail('공유 암호가 다르거나 암호화 자료가 손상되었습니다.','VAULT_AUTHENTICATION');}
+    try{
+      if(decoded.length>MAX_PLAINTEXT)fail('기관 정보는 암호화 전 512KiB 이하여야 합니다.');
+      var raw;
+      try{raw=JSON.parse(new root.TextDecoder('utf-8',{fatal:true}).decode(decoded));}catch(error){fail('암호화된 기관 정보의 본문을 확인해 주세요.');}
+      var p=profile(raw);
+      if(p.institution!==inst||p.revision!==envelope.revision||p.updatedAt!==envelope.updatedAt)fail('암호화된 기관 정보와 수정 이력이 일치하지 않습니다.');
+      return {profile:p,key:key,salt:envelope.salt};
+    }finally{decoded.fill(0);}
+  }
+  async function unlock(value,passphrase,inst){
+    phrase(passphrase);var envelope=await validate(value,inst),key=await derive(passphrase,envelope.salt);
+    return open(envelope,key,inst);
+  }
+  return {idFor:idFor,validate:validate,create:create,seal:seal,unlock:unlock,open:open};
+});
+
+</script>
+<script id="enrollment-certificate-store">
+(function(root,factory){
+  var api=factory(root);
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  else root.CERTIFICATE_STORE=api;
+})(typeof globalThis!=='undefined'?globalThis:this,function(root){
+  'use strict';
+  var COLLECTION='certificate_issuers',MAX_BYTES=900*1024;
+  var DB_NAME='koryo-certificate-vault-device-v1',dbPromise=null,deviceQueues=Object.create(null);
+  function fail(code,message){var error=new Error(message);error.code=code;throw error;}
+  function institution(value){
+    if(typeof value!=='string'||!value||value!==value.trim()||value.length>160||/[\u0000-\u001f\u007f]/.test(value))fail('invalid-argument','확인기관을 정확하게 선택해 주세요.');
+    return value;
+  }
+  function vault(){var v=root.CERTIFICATE_VAULT;if(!v||typeof v.idFor!=='function'||typeof v.validate!=='function')fail('unavailable','기관 정보 암호화 기능을 불러오지 못했습니다. 새로고침해 주세요.');return v;}
+  async function idFor(inst){var id=await vault().idFor(institution(inst));if(typeof id!=='string'||!/^[a-f0-9]{64}$/.test(id))fail('invalid-argument','확인기관 보관함의 식별자를 확인할 수 없습니다.');return id;}
+  function size(value){return new TextEncoder().encode(JSON.stringify(value)).byteLength;}
+  async function envelope(value,inst){
+    var normalized=await vault().validate(value,institution(inst));
+    if(size(normalized)>MAX_BYTES)fail('invalid-argument','암호화된 기관 정보가 너무 큽니다. 서명·직인 이미지를 줄여 주세요.');
+    return normalized;
+  }
+  function fingerprint(value){return JSON.stringify(Object.keys(value).sort().map(function(k){return [k,value[k]];}));}
+  function cloudError(error,writing){
+    if(error&&['conflict','invalid-argument','verification-failed'].indexOf(error.code)>=0)return error;
+    if(error&&/^VAULT_/.test(error.code))return error;
+    var code=String(error&&error.code||'').replace(/^firestore\//,'');
+    var message=code==='permission-denied'?'서버가 기관 정보 보관함 접근을 허용하지 않았습니다. 관리자에게 확인해 주세요.':code==='unauthenticated'?'서버 인증을 확인하지 못했습니다. 새로고침 후 다시 로그인해 주세요.':writing?'기관 정보를 서버에 저장·확인하지 못했습니다. 최신 저장 상태를 먼저 확인한 뒤 다시 시도해 주세요.':'기관 정보를 서버에서 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요.';
+    var result=new Error(message);result.code=code||'unavailable';return result;
+  }
+  async function database(){
+    var fb=root._FB;
+    if(!fb||!fb.authReady||!fb.db||typeof fb.db.collection!=='function')fail('unavailable','기관 정보 서버에 연결할 수 없습니다. 새로고침해 주세요.');
+    await fb.authReady;
+    if(root._FB!==fb||(fb.auth&&!fb.auth.currentUser))fail('unauthenticated','서버 인증을 확인하지 못했습니다. 새로고침 후 다시 로그인해 주세요.');
+    return fb.db;
+  }
+  async function read(inst){
+    inst=institution(inst);var id=await idFor(inst);
+    try{var db=await database(),snapshot=await db.collection(COLLECTION).doc(id).get({source:'server'});return {envelope:snapshot.exists?await envelope(snapshot.data(),inst):null};}
+    catch(error){throw cloudError(error,false);}
+  }
+  async function save(inst,value,expectedRevision){
+    inst=institution(inst);
+    if(expectedRevision!==null&&(typeof expectedRevision!=='string'||!expectedRevision||expectedRevision.length>128||!/^[\x21-\x7e]+$/.test(expectedRevision)))fail('invalid-argument','저장 전 서버의 이전 버전을 확인해 주세요.');
+    var next=await envelope(value,inst),id=await idFor(inst);
+    if(next.revision===expectedRevision)fail('invalid-argument','새 저장 버전을 만들어 다시 저장해 주세요.');
+    try{
+      var db=await database();if(typeof db.runTransaction!=='function')fail('unavailable','서버의 안전한 저장 기능을 사용할 수 없습니다.');
+      var ref=db.collection(COLLECTION).doc(id);
+      await db.runTransaction(async function(tx){
+        var snapshot=await tx.get(ref),old=snapshot.exists?await envelope(snapshot.data(),inst):null;
+        if((old?old.revision:null)!==expectedRevision)fail('conflict','다른 기기에서 기관장 정보가 변경되었습니다. 최신 정보를 다시 불러와 주세요.');
+        tx.set(ref,next);
+      });
+      var check=await ref.get({source:'server'});
+      if(!check.exists)fail('verification-failed','저장 후 서버에서 기관 정보를 확인하지 못했습니다. 다시 불러와 저장 상태를 확인해 주세요.');
+      var verified=await envelope(check.data(),inst);
+      if(fingerprint(verified)!==fingerprint(next))fail('verification-failed','저장 후 서버 정보가 달라졌습니다. 최신 정보를 다시 불러와 주세요.');
+      return verified;
+    }catch(error){throw cloudError(error,true);}
+  }
+  function keyRecord(value){
+    var key=value&&value.key,salt=value&&value.salt,CK=root.CryptoKey;
+    if(!key||typeof CK!=='function'||!(key instanceof CK)||key.type!=='secret'||key.extractable!==false||!key.algorithm||key.algorithm.name!=='AES-GCM'||key.algorithm.length!==256||key.usages.indexOf('encrypt')<0||key.usages.indexOf('decrypt')<0)fail('invalid-argument','이 기기에 보관할 암호화 키를 확인해 주세요.');
+    if(typeof salt!=='string'||!/^[A-Za-z0-9+/]{22}==$/.test(salt))fail('invalid-argument','기관 보관함의 암호화 정보를 확인해 주세요.');
+    try{var decoded=root.atob(salt);if(decoded.length!==16||root.btoa(decoded)!==salt)throw new Error();}
+    catch(error){fail('invalid-argument','기관 보관함의 암호화 정보를 확인해 주세요.');}
+    return {key:key,salt:salt};
+  }
+  function deviceError(){var error=new Error('이 기기의 기관 보관함을 사용할 수 없습니다. 보관 암호로 다시 열어 주세요.');error.code='device-store-unavailable';return error;}
+  function deviceDatabase(){
+    if(dbPromise)return dbPromise;
+    dbPromise=new Promise(function(resolve,reject){
+      if(!root.indexedDB){reject(deviceError());return;}
+      var request,settled=false;
+      try{request=root.indexedDB.open(DB_NAME,1);}catch(error){reject(deviceError());return;}
+      request.onupgradeneeded=function(){var db=request.result;if(!db.objectStoreNames.contains('keys'))db.createObjectStore('keys',{keyPath:'id'});};
+      request.onerror=request.onblocked=function(){settled=true;reject(deviceError());};
+      request.onsuccess=function(){var db=request.result;if(settled){db.close();return;}settled=true;db.onversionchange=function(){db.close();dbPromise=null;};resolve(db);};
+    });
+    dbPromise.catch(function(){dbPromise=null;});return dbPromise;
+  }
+  async function deviceGet(id){
+    var db=await deviceDatabase();
+    return new Promise(function(resolve,reject){
+      var tx,request,result=null;
+      try{tx=db.transaction('keys','readonly');request=tx.objectStore('keys').get(id);}catch(error){reject(deviceError());return;}
+      request.onsuccess=function(){result=request.result||null;};
+      request.onerror=tx.onerror=tx.onabort=function(){reject(deviceError());};
+      tx.oncomplete=function(){resolve(result);};
+    });
+  }
+  async function deviceChange(id,record){
+    var db=await deviceDatabase();
+    return new Promise(function(resolve,reject){
+      var tx;
+      try{tx=db.transaction('keys','readwrite');if(record)tx.objectStore('keys').put(record);else tx.objectStore('keys').delete(id);}catch(error){reject(deviceError());return;}
+      tx.oncomplete=function(){resolve();};tx.onerror=tx.onabort=function(){reject(deviceError());};
+    });
+  }
+  function deviceOperation(inst,operation){
+    inst=institution(inst);
+    var pending=(deviceQueues[inst]||Promise.resolve()).then(operation),settled=pending.then(function(){},function(){});
+    deviceQueues[inst]=settled;settled.then(function(){if(deviceQueues[inst]===settled)delete deviceQueues[inst];});return pending;
+  }
+  async function remember(inst,value){var checked=keyRecord(value);return deviceOperation(inst,async function(){var id=await idFor(inst);await deviceChange(id,{id:id,key:checked.key,salt:checked.salt});});}
+  async function recall(inst){return deviceOperation(inst,async function(){var id=await idFor(inst),record=await deviceGet(id);if(!record)return null;if(record.id!==id)fail('device-store-unavailable','이 기기의 기관 보관함 정보가 일치하지 않습니다.');return keyRecord(record);});}
+  async function forget(inst){return deviceOperation(inst,async function(){await deviceChange(await idFor(inst),null);});}
+  return {read:read,save:save,remember:remember,recall:recall,forget:forget};
+});
+
+</script>
+<script id="enrollment-certificate-core">
+(function(root,factory){
+  'use strict';
+  var api=factory();
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  root.CERTIFICATE_CORE=api;
+})(typeof window==='undefined'?globalThis:window,function(){
+  'use strict';
+  var DAY=86400000,KST=9*3600000,TYPES=['결석','지각','조퇴','외출','출석체크누락'];
+  function text(v){return v===null||v===undefined?'':String(v);}
+  function plain(v){return v&&typeof v==='object'&&!Array.isArray(v);}
+  function esc(v){return text(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function validDate(v){
+    if(typeof v!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(v))return false;
+    var n=Date.parse(v+'T00:00:00Z');
+    return isFinite(n)&&new Date(n).toISOString().slice(0,10)===v;
+  }
+  function dayMs(v){return Date.parse(v+'T00:00:00Z');}
+  function unique(a){return Array.from(new Set(a));}
+  function rounded(n){return Math.round((n+Number.EPSILON)*1000000)/1000000;}
+  function number(v){return (typeof v==='number'||typeof v==='string')&&text(v).trim()!==''&&isFinite(Number(v))?Number(v):null;}
+  function issue(errors,message){if(errors.indexOf(message)<0)errors.push(message);}
+  function review(row,message){if(row.reviewReasons.indexOf(message)<0)row.reviewReasons.push(message);}
+  function oneYearAfter(date){
+    var a=date.split('-').map(Number),d=new Date(date+'T00:00:00Z');d.setUTCFullYear(a[0]+1);
+    if(d.getUTCMonth()!==a[1]-1)d.setUTCDate(0);
+    return d.toISOString().slice(0,10);
+  }
+  function checkedIdentity(raw,errors){
+    raw=plain(raw)?raw:{};
+    var student={institution:text(raw.institution),cohort:text(raw.cohort),name:text(raw.name),birth:text(raw.birth)};
+    if(!student.institution||student.institution!==student.institution.trim()||student.institution.length>120||/[\u0000-\u001f]/.test(student.institution))issue(errors,'교육원 정보를 정확히 선택해 주세요.');
+    if(!/^[1-9]\d{0,3}(?:기)?$/.test(student.cohort))issue(errors,'기수 정보를 정확히 선택해 주세요.');
+    if(!student.name||student.name!==student.name.trim()||student.name.length>80||/[\u0000-\u001f]/.test(student.name))issue(errors,'수강생 성명을 정확히 선택해 주세요.');
+    if(!/^\d{6}$/.test(student.birth))issue(errors,'생년월일은 원본의 6자리로 확인해 주세요.');
+    return student;
+  }
+  function readPeriods(values,row,label,allowEmpty){
+    if(!Array.isArray(values)){review(row,label+' 교시가 없습니다.');return [];}
+    if(!values.length&&!allowEmpty)review(row,label+' 교시가 비어 있습니다.');
+    var out=[];
+    values.forEach(function(v){
+      if(typeof v!=='number'||!Number.isInteger(v)||v<1||v>8){review(row,label+' 교시가 올바르지 않습니다.');return;}
+      if(out.indexOf(v)>=0)review(row,label+'에 중복 교시가 있습니다.');else out.push(v);
+    });
+    return out.sort(function(a,b){return a-b;});
+  }
+  function addTypes(value,types,row){
+    if(value===null||value===undefined||value==='')return;
+    text(value).split(/[·,/]/).forEach(function(s){
+      s=s.trim();if(!s)return;
+      if(TYPES.indexOf(s)<0){review(row,'부재 유형을 확인해 주세요.');return;}
+      if(types.indexOf(s)<0)types.push(s);
+    });
+  }
+  function inspectAbsence(item,row,scheduled){
+    var types=[],aggregate=[],events=[],parts=[];
+    addTypes(item.type,types,row);
+    if(item.types!==undefined){
+      if(!Array.isArray(item.types))review(row,'부재 유형 목록을 확인해 주세요.');
+      else item.types.forEach(function(t){addTypes(t,types,row);});
+    }
+    var hasPeriods=Object.prototype.hasOwnProperty.call(item,'교시');
+    if(hasPeriods)aggregate=readPeriods(item['교시'],row,'부재',true);
+    if(item.events!==undefined&&item.events!==null){
+      if(!Array.isArray(item.events))review(row,'부재 유형별 교시를 확인해 주세요.');
+      else item.events.forEach(function(event){
+        if(!plain(event)){review(row,'부재 유형별 교시를 확인해 주세요.');return;}
+        addTypes(event.type,types,row);
+        var p=readPeriods(event.periods!==undefined?event.periods:event['교시'],row,'유형별 부재',false);
+        events=events.concat(p);
+        if(TYPES.indexOf(text(event.type))>=0&&p.length)parts.push(text(event.type)+' '+p.join('·')+'교시');
+      });
+    }
+    events=unique(events).sort(function(a,b){return a-b;});
+    if(hasPeriods&&aggregate.length&&events.length&&JSON.stringify(aggregate)!==JSON.stringify(events))review(row,'전체 부재 교시와 유형별 교시가 다릅니다.');
+    var coverage=unique(aggregate.concat(events)).sort(function(a,b){return a-b;});
+    if(!coverage.length)review(row,'부재 교시 근거가 없습니다.');
+    if(!types.length)review(row,'부재 유형을 확인해 주세요.');
+    if(types.indexOf('출석체크누락')>=0)review(row,'출석체크누락은 실제 수강시간 확인이 필요합니다.');
+    if(coverage.some(function(p){return scheduled.indexOf(p)<0;}))review(row,'시간표에 없는 부재 교시가 있습니다.');
+    var theory=number(item['이론']),skills=number(item['실기']);
+    if(theory===null||skills===null)review(row,'부재 이론·실기 시수가 비어 있습니다.');
+    else if(!Number.isInteger(theory)||!Number.isInteger(skills)||theory<0||skills<0||theory>8||skills>8||theory+skills!==coverage.length)review(row,'부재 시수와 교시가 일치하지 않습니다.');
+    if(!parts.length&&coverage.length&&types.length)parts.push(types.join('·')+' '+coverage.join('·')+'교시');
+    return {periods:coverage.filter(function(p){return scheduled.indexOf(p)>=0;}),detail:unique(parts).join(' / '),types:types,allPeriods:coverage};
+  }
+  function create(options){
+    options=plain(options)?options:{};
+    var errors=[],student=checkedIdentity(options.student,errors),from=text(options.from),to=text(options.to),issueDate=text(options.issueDate);
+    var model={student:student,from:from,to:to,issueDate:issueDate,rows:[],totalDays:null,totalHours:null,scheduledHours:0,absenceHours:null,ready:false,errors:errors};
+    var rangeOK=validDate(from)&&validDate(to)&&from<=to;
+    if(!validDate(from)||!validDate(to))issue(errors,'확인기간의 시작일과 종료일을 올바르게 선택해 주세요.');
+    else if(from>to)issue(errors,'종료일은 시작일보다 빠를 수 없습니다.');
+    else if(to>oneYearAfter(from)){issue(errors,'확인기간은 1년을 초과할 수 없습니다.');rangeOK=false;}
+    if(!validDate(issueDate))issue(errors,'발급일을 올바르게 선택해 주세요.');
+    if(validDate(issueDate)&&validDate(to)&&issueDate<to)issue(errors,'발급일은 확인기간 종료일보다 빠를 수 없습니다.');
+    var asOf=text(options.asOf),asOfMs=NaN;
+    if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(asOf)&&validDate(asOf.slice(0,10)))asOfMs=Date.parse(asOf);
+    var today=isFinite(asOfMs)?new Date(asOfMs+KST).toISOString().slice(0,10):'';
+    if(!today)issue(errors,'현재 한국시간 확인값(asOf)이 필요합니다.');
+    else{
+      if(validDate(issueDate)&&issueDate>today)issue(errors,'미래 날짜로 발급할 수 없습니다.');
+      if(rangeOK&&to>today)issue(errors,'확인기간에 미래 날짜를 포함할 수 없습니다.');
+    }
+    if(!Array.isArray(options.lessons))issue(errors,'선택한 과정의 확정 시간표가 필요합니다.');
+    if(!Array.isArray(options.absenceItems))issue(errors,'해당 수강생의 현재 부재 내역을 확인해 주세요.');
+    if(options.overrides!==undefined&&!plain(options.overrides))issue(errors,'관리자 수강시간 확인값을 확인해 주세요.');
+    if(!rangeOK)return model;
+    var lessonMap=Object.create(null),absenceMap=Object.create(null),overrides=plain(options.overrides)?options.overrides:{};
+    (Array.isArray(options.lessons)?options.lessons:[]).forEach(function(lesson){
+      if(!plain(lesson)||!validDate(lesson.date)){issue(errors,'시간표에 잘못된 수업 날짜가 있습니다.');return;}
+      if(lesson.date<from||lesson.date>to)return;
+      if(lessonMap[lesson.date]){issue(errors,lesson.date+' 수업 날짜가 중복됩니다.');return;}
+      lessonMap[lesson.date]=lesson;
+    });
+    (Array.isArray(options.absenceItems)?options.absenceItems:[]).forEach(function(item){
+      if(!plain(item)||!validDate(item.date)){issue(errors,'부재 내역에 잘못된 날짜가 있습니다.');return;}
+      if(item.date<from||item.date>to)return;
+      if(!lessonMap[item.date]){issue(errors,item.date+' 부재 내역에 해당하는 시간표가 없습니다.');return;}
+      (absenceMap[item.date]||(absenceMap[item.date]=[])).push(item);
+    });
+    Object.keys(lessonMap).sort().forEach(function(date){
+      var lesson=lessonMap[date],row={date:date,scheduledHours:0,suggestedHours:0,hours:null,status:'확인 전',needsReview:false,detail:'',reviewReasons:[],overridden:false};
+      var scheduled=readPeriods(lesson.periods,row,'시간표',false);
+      row.scheduledHours=scheduled.length;model.scheduledHours+=scheduled.length;
+      if(row.reviewReasons.length)issue(errors,date+' 시간표 교시를 먼저 바로잡아 주세요.');
+      var end=text(lesson.end),timeBlocked=false;
+      if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(end)){issue(errors,date+' 수업 종료시각을 확인해 주세요.');timeBlocked=true;}
+      if(today&&date>today){issue(errors,date+' 미래 수업은 확인할 수 없습니다.');timeBlocked=true;}
+      if(today&&date===today&&!timeBlocked&&Date.parse(date+'T'+end+':00+09:00')>asOfMs){issue(errors,date+' 수업이 아직 종료되지 않았습니다.');timeBlocked=true;}
+      var items=absenceMap[date]||[],coverage=[],detailTypes=[],detailPeriods=[];
+      if(items.length>1)review(row,'같은 날짜의 부재 내역이 중복되어 있습니다.');
+      items.forEach(function(item){var inspected=inspectAbsence(item,row,scheduled);coverage=coverage.concat(inspected.periods);detailTypes=detailTypes.concat(inspected.types);detailPeriods=detailPeriods.concat(inspected.allPeriods);});
+      row.suggestedHours=scheduled.length-unique(coverage).length;
+      row.detail=unique(detailTypes).join('·')+(detailPeriods.length?' '+unique(detailPeriods).sort(function(a,b){return a-b;}).join('·')+'교시':'');
+      var chosen=row.suggestedHours;
+      if(Object.prototype.hasOwnProperty.call(overrides,date)){
+        var override=overrides[date],value=plain(override)&&typeof override.hours==='number'&&isFinite(override.hours)?override.hours:null;
+        if(value===null||value<0||value>row.scheduledHours)review(row,'확인 수강시간은 0시간부터 예정시수까지 입력해 주세요.');
+        else{chosen=rounded(value);row.overridden=true;row.reviewReasons=[];}
+      }
+      row.needsReview=row.reviewReasons.length>0;
+      if(row.needsReview)issue(errors,date+' 출결을 검토하고 수강시간을 확인해 주세요.');
+      if(options.confirmed===true&&!row.needsReview&&!timeBlocked){
+        row.hours=chosen;
+        row.status=chosen===0?'결석':chosen===row.scheduledHours?'O('+chosen+'시간)':'부분수강('+chosen+'시간)';
+      }else if(options.confirmed===true)row.status='확인 필요';
+      model.rows.push(row);
+    });
+    if(!model.rows.length)issue(errors,'선택한 기간에 확인할 수업일이 없습니다.');
+    if(options.confirmed!==true)issue(errors,'관리자의 출결 확인이 필요합니다.');
+    model.ready=options.confirmed===true&&!errors.length&&model.rows.length>0&&model.rows.every(function(row){return row.hours!==null&&!row.needsReview;});
+    if(model.ready){
+      model.totalDays=model.rows.filter(function(row){return row.hours>0;}).length;
+      model.totalHours=rounded(model.rows.reduce(function(sum,row){return sum+row.hours;},0));
+      model.absenceHours=rounded(model.scheduledHours-model.totalHours);
+    }
+    return model;
+  }
+  function asset(value,label){
+    if(value===undefined||value===null||value==='')return '';
+    if(typeof value!=='string')throw new Error(label+' 이미지 형식을 확인해 주세요.');
+    var match=/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+    if(!match||match[2].length%4!==0)throw new Error(label+'은 PNG/JPEG/Webp data URI만 사용할 수 있습니다.');
+    var alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/',bytes=[],bits=0,buffer=0;
+    for(var i=0;i<match[2].length&&match[2][i]!=='='&&bytes.length<12;i++){
+      buffer=(buffer<<6)|alphabet.indexOf(match[2][i]);bits+=6;
+      if(bits>=8){bits-=8;bytes.push((buffer>>bits)&255);}
+    }
+    var ok=match[1]==='png'?bytes.length>=8&&bytes.slice(0,8).join(',')==='137,80,78,71,13,10,26,10':match[1]==='jpeg'?bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255:bytes.length>=12&&String.fromCharCode.apply(null,bytes.slice(0,4))==='RIFF'&&String.fromCharCode.apply(null,bytes.slice(8,12))==='WEBP';
+    if(!ok)throw new Error(label+'의 이미지 데이터와 형식이 일치하지 않습니다.');
+    return value;
+  }
+  function koreanDate(date){var p=date.split('-');return p[0]+'년 '+p[1]+'월 '+p[2]+'일';}
+  function cell(row){return row?'<strong>'+esc(row.status)+'</strong>'+(row.detail?'<small>'+esc(row.detail)+'</small>':''):'';}
+  function table(rows){
+    var h='<table class="cert-attendance"><colgroup><col class="cert-label-col"><col><col><col><col><col></colgroup><tbody>';
+    for(var i=0;i<rows.length;i+=5){
+      h+='<tr class="cert-dates"><th scope="row">날짜</th>';
+      for(var j=0;j<5;j++)h+='<td>'+(rows[i+j]?esc(rows[i+j].date.slice(5).replace('-','.')):'')+'</td>';
+      h+='</tr><tr class="cert-confirm"><th scope="row">확인</th>';
+      for(var k=0;k<5;k++)h+='<td>'+cell(rows[i+k])+'</td>';
+      h+='</tr>';
+    }
+    return h+'</tbody></table>';
+  }
+  function documentHtml(model,profile){
+    if(!plain(model)||model.ready!==true||!Array.isArray(model.errors)||model.errors.length||!Array.isArray(model.rows)||!model.rows.length)throw new Error('출결 확인이 끝난 확인서만 인쇄할 수 있습니다.');
+    if(!model.rows.every(function(row){return validDate(row.date)&&typeof row.hours==='number'&&isFinite(row.hours)&&row.hours>=0&&row.hours<=row.scheduledHours&&!row.needsReview;}))throw new Error('확인서의 수강시간을 다시 확인해 주세요.');
+    if(!plain(profile)||profile.institution!==model.student.institution)throw new Error('선택한 수강생과 확인기관이 일치하지 않습니다.');
+    var director=text(profile.directorName).trim();
+    if(!director||director.length>80||/[\u0000-\u001f]/.test(director))throw new Error('등록된 확인자 성명을 확인해 주세요.');
+    var seal=asset(profile.seal,'직인'),signature=asset(profile.signature,'확인자 서명');
+    var total=rounded(model.rows.reduce(function(sum,row){return sum+row.hours;},0)),days=model.rows.filter(function(row){return row.hours>0;}).length;
+    if(total!==model.totalHours||days!==model.totalDays||rounded(model.scheduledHours-total)!==model.absenceHours)throw new Error('확인서 표와 요약 시수가 일치하지 않습니다.');
+    if(total<=0)throw new Error('수강시간이 0시간인 확인서는 발급할 수 없습니다.');
+    var count=Math.ceil(model.rows.length/25),body='';
+    for(var page=0;page<count;page++){
+      var last=page===count-1,rows=model.rows.slice(page*25,(page+1)*25);
+      body+='<section class="certificate-page" data-page="'+(page+1)+'"><h1>직업훈련과정 수강확인서'+(page?' <span>(계속)</span>':'')+'</h1>';
+      body+='<p class="cert-intro">본 교육원 교육생 <strong>('+esc(model.student.name)+')</strong>이 아래와 같이 당 기관에서 실시하는 직업훈련과정에 참여하였음을 확인합니다.</p>';
+      body+='<p class="cert-identity">○ 생년월일 : '+esc(model.student.birth)+' <span>기수 : '+esc(model.student.cohort)+'</span></p>';
+      body+='<p class="cert-period">○ 확인기간 : '+esc(koreanDate(model.from))+' ~ '+esc(koreanDate(model.to))+'<br><span>(총 '+esc(model.totalHours)+'시간)</span></p>';
+      body+='<h2>○ 출석날짜</h2>'+table(rows);
+      if(last){
+        body+='<div class="cert-summary">본 교육원생은 '+esc(koreanDate(model.from))+' ~ '+esc(koreanDate(model.to))+'까지<br>총 <strong>'+esc(model.totalDays)+'일</strong> 동안 <strong>'+esc(model.totalHours)+'시간</strong> 수강하였음을 확인합니다.<p>예정 '+esc(model.scheduledHours)+'시간 · 수강 '+esc(model.totalHours)+'시간 · 부재 '+esc(model.absenceHours)+'시간</p></div>';
+        body+='<p class="cert-issue">'+esc(koreanDate(model.issueDate))+'</p><div class="cert-endorsement"><div class="cert-endline"><span>확인기관 : '+esc(profile.institution)+'</span>'+(seal?'<img class="cert-seal" src="'+esc(seal)+'" alt="등록된 기관 직인">':'<span class="cert-placeholder">(인)</span>')+'</div><div class="cert-endline"><span>확 인 자 : '+esc(director)+'</span>'+(signature?'<img class="cert-signature" src="'+esc(signature)+'" alt="등록된 확인자 서명">':'<span class="cert-placeholder">(인)</span>')+'</div></div>';
+      }
+      body+='<footer>'+esc(model.student.institution)+' · '+(page+1)+' / '+count+'</footer></section>';
+    }
+    var css='@page{size:A4 portrait;margin:14mm;}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#000;font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif}.certificate-page{position:relative;width:182mm;height:265mm;min-height:265mm;padding:1mm 0 9mm;break-after:page;page-break-after:always;font-size:11pt;line-height:1.6;overflow-wrap:anywhere}.certificate-page:last-of-type{break-after:auto;page-break-after:auto}h1{margin:0 0 4mm;padding:2.5mm 1mm;border:.3mm solid #111;background:#dedede;font-size:18pt;line-height:1.4;text-align:center;letter-spacing:1mm}h1 span{font-size:11pt;letter-spacing:0}p{margin:2mm 0}.cert-intro{margin:0 0 3mm}.cert-identity span{float:right}.cert-period>span{display:inline-block;margin-left:5mm}h2{font-size:11pt;font-weight:normal;margin:3mm 0 2mm}.cert-attendance{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9pt;line-height:1.3}.cert-label-col{width:14mm}.cert-attendance th,.cert-attendance td{border:.25mm solid #222;text-align:center;vertical-align:middle;padding:1.1mm .7mm;overflow-wrap:anywhere}.cert-attendance th{font-weight:bold;background:#eee}.cert-dates td,.cert-dates th{height:6mm}.cert-confirm td{min-height:7mm}.cert-confirm strong{font-size:9pt;font-weight:normal}.cert-confirm small{display:block;margin-top:.5mm;font-size:7.5pt;line-height:1.25}.cert-summary{margin-top:6mm;font-size:11pt;line-height:1.9;break-inside:avoid}.cert-summary p{font-size:9pt;margin-top:1mm}.cert-issue{margin-top:5mm;text-align:center;font-size:12pt}.cert-endorsement{margin-top:5mm;break-inside:avoid}.cert-endline{display:flex;align-items:center;justify-content:flex-end;gap:3mm;min-height:17mm;font-size:12pt}.cert-endline>span:first-child{max-width:145mm}.cert-seal{width:21mm;height:21mm;object-fit:contain}.cert-signature{width:26mm;height:12mm;object-fit:contain}.cert-placeholder{min-width:10mm;text-align:center}footer{position:absolute;left:0;bottom:0;width:100%;border-top:.2mm solid #aaa;padding-top:1mm;font-size:8pt;text-align:right}tr{break-inside:avoid;page-break-inside:avoid}@media screen{body{background:#e8e8e8}.certificate-page{margin:6mm auto;background:#fff;box-shadow:0 1px 6px #aaa}}@media print{html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.certificate-page{margin:0;box-shadow:none}}';
+    return '<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>'+esc(model.student.name)+' 수강확인서</title><style>'+css+'</style></head><body>'+body+'</body></html>';
+  }
+  return {create:create,documentHtml:documentHtml,validDate:validDate};
+});
+
+</script>
+<!-- ENROLLMENT_CERTIFICATE_UI_START -->
+<style>
+#enrollmentCertificate{position:fixed;inset:0;z-index:12500;background:#f3f6fa;color:#172334;overflow:auto;color-scheme:light;}
+#enrollmentCertificate[hidden]{display:none!important;}#enrollmentCertificate *{box-sizing:border-box;}
+.ec-top{position:sticky;top:0;z-index:2;background:#174f68;color:#fff;padding:12px 16px;display:flex;gap:10px;align-items:center;}.ec-top h2{flex:1;margin:0;font-size:20px;}
+.ec-wrap{max-width:980px;margin:auto;padding:16px 12px 50px;}.ec-card{background:#fff;border:1px solid #dbe3ec;border-radius:12px;padding:16px;margin-bottom:14px;}.ec-card h3{margin:0 0 12px;font-size:18px;}
+.ec-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}.ec-grid3{grid-template-columns:repeat(3,minmax(0,1fr));}.ec-field{display:flex;gap:5px;flex-direction:column;font-size:14px;font-weight:700;}.ec-field input,.ec-field select{width:100%;min-width:0;border:1px solid #b8c8d6;border-radius:7px;padding:10px;background:#fff;color:#172334;font:inherit;}
+.ec-btn{border:0;border-radius:7px;background:#e6edf4;color:#173c54;padding:11px 15px;cursor:pointer;font-size:14px;font-weight:700;}.ec-btn.primary{background:#176382;color:#fff;}.ec-btn:disabled{opacity:.5;cursor:default;}.ec-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}.ec-note{font-size:13px;line-height:1.6;color:#53677d;margin:8px 0;}.ec-status{background:#e9f3fa;padding:11px;border-radius:7px;margin-bottom:12px;line-height:1.6;}.ec-error{color:#a81818;background:#fff0ed;}.ec-table-wrap{overflow:auto;}.ec-table{width:100%;border-collapse:collapse;font-size:14px;}.ec-table th,.ec-table td{border:1px solid #cdd7e0;padding:8px;text-align:left;}.ec-table th{background:#edf2f7;}.ec-table input{width:80px;padding:7px;border:1px solid #a9bdce;border-radius:5px;}.ec-table .ec-review{background:#fff4df;}.ec-asset{display:flex;gap:10px;align-items:center;min-height:65px;}.ec-asset img{width:100px;height:64px;object-fit:contain;background:#fff;border:1px solid #d8e0e8;}.ec-asset span{color:#64748b;font-size:13px;}.ec-preview{width:100%;height:1000px;border:1px solid #cdd7e0;background:#fff;}.ec-check{display:flex;align-items:flex-start;gap:9px;padding:12px;background:#edf5fb;border-radius:8px;line-height:1.6;font-weight:700;}.ec-check input{width:20px;height:20px;flex:0 0 auto;margin-top:3px;}
+#ecSignatureDialog{position:fixed;inset:0;z-index:13000;background:#0009;display:flex;align-items:center;justify-content:center;padding:12px;}#ecSignatureDialog[hidden]{display:none!important;}.ec-sign-box{width:min(620px,100%);background:#fff;color:#111;padding:18px;border-radius:12px;}#ecSignaturePad{display:block;width:100%;height:200px;border:2px solid #94a3b8;background:#fff!important;color-scheme:light;forced-color-adjust:none;touch-action:none;}
+@media(max-width:600px){.ec-grid,.ec-grid3{grid-template-columns:1fr;}.ec-top h2{font-size:18px;}.ec-wrap{padding:10px 8px 35px;}.ec-card{padding:12px;}.ec-preview{height:720px;}}
+</style>
+<section id="enrollmentCertificate" hidden aria-label="수강확인서 발급">
+ <header class="ec-top"><h2>수강확인서</h2><button type="button" class="ec-btn" onclick="CBT_CERTIFICATE.close()">닫기 ✕</button></header>
+ <div class="ec-wrap">
+  <div id="ecStatus" role="status" aria-live="polite" class="ec-status"></div>
+  <div class="ec-card"><h3>1. 수강생과 확인 기간</h3>
+   <div class="ec-grid"><label class="ec-field">기관<select id="ecInstitution" onchange="CBT_CERTIFICATE.changeInstitution()"></select></label><label class="ec-field">기수<select id="ecCohort" onchange="CBT_CERTIFICATE.filter()"></select></label><label class="ec-field">이름 검색<input id="ecSearch" placeholder="이름을 입력하세요" oninput="CBT_CERTIFICATE.filter()"></label><label class="ec-field">수강생<select id="ecStudent" onchange="CBT_CERTIFICATE.select()"></select></label></div>
+   <div class="ec-grid ec-grid3" style="margin-top:12px"><label class="ec-field">교육과정<select id="ecCourse" onchange="CBT_CERTIFICATE.course()"><option value="">과정을 선택하세요</option><option value="std">일반(표준)</option><option value="sw">사회복지사</option><option value="nu">간호조무사</option><option value="rn">간호사</option></select></label><label class="ec-field">확인 시작일<input id="ecFrom" type="date" onchange="CBT_CERTIFICATE.rangeChanged()"></label><label class="ec-field">확인 종료일<input id="ecTo" type="date" onchange="CBT_CERTIFICATE.rangeChanged()"></label><label class="ec-field">발급일<input id="ecIssue" type="date" onchange="CBT_CERTIFICATE.invalidate()"></label></div>
+   <div class="ec-actions"><button class="ec-btn primary" onclick="CBT_CERTIFICATE.calculate()">시간표·부재 내역 불러오기</button></div>
+   <p id="ecSource" class="ec-note">앱에 등록된 과정별 시간표와 부재 내역으로 수강시간 초안을 만듭니다.</p>
+  </div>
+  <div class="ec-card"><h3>2. 수강일·시간 확인</h3><div id="ecRows"><p class="ec-note">수강생과 기간을 선택해 주세요.</p></div>
+   <details style="margin-top:12px"><summary>수업일 추가 — 실습·보충 등</summary><p class="ec-note">앱 시간표에 없는 수업일은 확인한 날짜와 수강시간을 직접 추가합니다.</p><div class="ec-grid"><label class="ec-field">수업 날짜<input id="ecExtraDate" type="date"></label><label class="ec-field">수강시간<input id="ecExtraHours" type="number" min="1" max="8" step="1" value="8"></label></div><button class="ec-btn" style="margin-top:8px" onclick="CBT_CERTIFICATE.addDay()">수업일 추가</button></details>
+   <label class="ec-check" style="margin-top:14px"><input id="ecConfirmed" type="checkbox" onchange="CBT_CERTIFICATE.confirmed()"><span>원자료와 대조하여 위 기간의 수강일·수강시간을 확인했습니다.</span></label>
+  </div>
+  <details class="ec-card" id="ecProfile"><summary style="font-size:18px;font-weight:700;cursor:pointer">기관장 성함 · 서명 · 직인 관리</summary>
+   <p class="ec-note">기관별 암호화 보관함을 사용합니다. 같은 기관의 다른 컴퓨터·휴대폰에서는 보관 암호로 불러오세요. 처음 등록할 때에는 12자 이상의 새 보관 암호를 정해 주세요.</p>
+   <p id="ecVaultStatus" role="status" class="ec-note"></p><div class="ec-grid"><label class="ec-field">서명·직인 보관 암호<input id="ecVaultPassword" type="password" autocomplete="off" maxlength="200" placeholder="처음 등록하거나 새 기기에서 불러올 때"></label><div class="ec-actions"><button id="ecUnlock" class="ec-btn" onclick="CBT_CERTIFICATE.unlockProfile()">기관 보관함 불러오기</button><button id="ecLock" class="ec-btn" onclick="CBT_CERTIFICATE.lockProfile()">이 기기의 보관함 잠그기</button></div></div><label class="ec-note" style="display:block;margin:10px 0"><input id="ecRemember" type="checkbox"> 이 기기에서는 보관 암호 다시 묻지 않기 (공용 기기에서는 선택하지 마세요)</label>
+   <fieldset id="ecProfileFields" style="border:0;padding:0;margin:0;min-width:0"><label class="ec-field">기관장 성함<input id="ecDirector" oninput="CBT_CERTIFICATE.directorChanged()" autocomplete="off"></label>
+   <div class="ec-grid" style="margin-top:12px"><div><b>기관장 서명</b><div id="ecSignaturePreview" class="ec-asset"></div><div class="ec-actions"><button class="ec-btn" onclick="CBT_CERTIFICATE.drawSignature()">서명 등록·변경</button><button class="ec-btn" onclick="CBT_CERTIFICATE.chooseImage('signature')">서명 이미지로 변경</button></div></div><div><b>기관 직인</b><div id="ecSealPreview" class="ec-asset"></div><div class="ec-actions"><button class="ec-btn" onclick="CBT_CERTIFICATE.chooseImage('seal')">직인 등록·변경</button></div></div></div>
+   <input id="ecAssetFile" type="file" accept="image/png,image/jpeg,image/webp" hidden onchange="CBT_CERTIFICATE.imageSelected(this)">
+   <div class="ec-actions"><button class="ec-btn primary" onclick="CBT_CERTIFICATE.saveProfile()">기관장 정보 저장</button><button class="ec-btn" onclick="CBT_CERTIFICATE.resetProfile()">수정 취소</button></div></fieldset><p id="ecProfileStatus" role="status" class="ec-note"></p>
+  </details>
+  <div class="ec-card"><h3>3. 확인서 미리보기 · 출력</h3><p class="ec-note">등록한 서명·직인을 자동으로 넣습니다. 미등록 시에는 수기 서명·날인 칸을 남깁니다. 주민등록번호 뒷자리는 사용하지 않습니다.</p><div class="ec-actions"><button class="ec-btn primary" onclick="CBT_CERTIFICATE.preview()">확인서 미리보기</button><button id="ecPrint" class="ec-btn primary" disabled onclick="CBT_CERTIFICATE.print()">출력 / PDF 저장</button></div><div id="ecDocument" style="margin-top:12px"></div></div>
+ </div>
+</section>
+<div id="ecSignatureDialog" hidden role="dialog" aria-modal="true" aria-label="기관장 서명 등록"><div class="ec-sign-box"><h3 style="margin-top:0">기관장 서명 등록·변경</h3><p class="ec-note">기관장 본인이 아래 흰색 칸에 서명해 주세요.</p><canvas id="ecSignaturePad" width="1000" height="360"></canvas><div class="ec-actions"><button class="ec-btn" onclick="CBT_CERTIFICATE.clearSignature()">다시 쓰기</button><button class="ec-btn primary" onclick="CBT_CERTIFICATE.useSignature()">이 서명 사용</button><button class="ec-btn" onclick="CBT_CERTIFICATE.cancelSignature()">취소</button></div></div></div>
+<!-- ENROLLMENT_CERTIFICATE_UI_END -->
+
+<script id="enrollment-certificate-admin">
+(function(){
+ 'use strict';
+ var W='고려요양보호사교육원 원주점',M='고려요양보호사교육원';
+ var state={open:false,actor:null,institution:'',students:[],selected:null,lessons:[],extra:[],absenceItems:[],overrides:{},loaded:false,ticket:0,timer:null,profile:null,draft:null,dirty:false,assetKind:'',preview:null,previewTicket:0,profileTicket:0,saveTicket:0,saving:false,unlocking:false,assetTicket:0,assetContext:null,signatureContext:null,vault:null};
+ function el(id){return document.getElementById(id);}
+ function str(v){return v==null?'':String(v);}
+ function esc(v){return str(v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+ function copy(v){return JSON.parse(JSON.stringify(v));}
+ function actor(){if(window.SUPER_USER)return {super:true,institution:'',id:str(SUPER_USER.id)};if(window.ADMIN_USER&&ADMIN_USER.기관명)return {super:false,institution:str(ADMIN_USER.기관명),id:str(ADMIN_USER.id)};return null;}
+ function same(a,b){return !!a&&!!b&&a.super===b.super&&a.institution===b.institution&&a.id===b.id;}
+ function allowed(){var a=actor();return state.open&&same(a,state.actor)&&!!state.institution&&(a.super||a.institution===state.institution);}
+ function guard(ticket,student){return allowed()&&ticket===state.ticket&&(!student||(state.selected&&state.selected.key===student.key));}
+ function status(v,error){el('ecStatus').textContent=v;el('ecStatus').className='ec-status'+(error?' ec-error':'');}
+ function now(){return new Date().toISOString();}
+ function today(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
+ function cohort(v){return str(v).replace(/\D/g,'');}
+ function birth(v){return str(v).replace(/\D/g,'').slice(-6);}
+ function identity(v){return JSON.stringify([v.institution||v.기관명,cohort(v.cohort||v.기수),v.name,birth(v.birth)]);}
+ function resetDocument(){state.preview=null;++state.previewTicket;el('ecPrint').disabled=true;el('ecDocument').innerHTML='';}
+ function invalidate(){if(!allowed())return close();resetDocument();}
+ function resetAttendance(){++state.ticket;state.loaded=false;state.lessons=[];state.extra=[];state.absenceItems=[];state.overrides={};el('ecConfirmed').checked=false;el('ecRows').innerHTML='<p class="ec-note">수강생과 기간을 선택한 뒤 내역을 불러와 주세요.</p>';resetDocument();}
+ function insts(selected){var list=[];if(state.actor.super){(typeof getAdmins==='function'?getAdmins():[]).forEach(function(a){if(a.기관명)list.push(str(a.기관명));});(typeof getAllUsers==='function'?getAllUsers():[]).forEach(function(u){if(u.기관명)list.push(str(u.기관명));});if(selected)list.push(selected);}else list=[state.actor.institution];return Array.from(new Set(list)).sort();}
+ async function open(institution,person){
+  var a=actor();if(!a){alert('관리자로 로그인한 뒤 이용해 주세요.');return;}
+  close();state.open=true;state.actor=a;var list=insts(a.super?institution:a.institution);state.institution=list.indexOf(institution)>=0?institution:(list[0]||'');
+  el('enrollmentCertificate').hidden=false;el('ecInstitution').innerHTML=list.map(function(i){return '<option>'+esc(i)+'</option>';}).join('');el('ecInstitution').value=state.institution;el('ecInstitution').disabled=!a.super;
+  el('ecIssue').value=today();['ecFrom','ecTo','ecIssue','ecExtraDate'].forEach(function(id){el(id).max=today();});el('ecSearch').value='';el('ecCourse').value='';
+  state.timer=setInterval(function(){if(state.open&&!same(actor(),state.actor))close();},400);
+  await loadStudents(person);
+ }
+ function close(){
+  state.open=false;++state.ticket;++state.previewTicket;++state.profileTicket;++state.saveTicket;++state.assetTicket;state.saving=false;state.unlocking=false;state.assetContext=null;state.vault=null;clearInterval(state.timer);state.timer=null;state.selected=null;state.students=[];state.profile=null;state.draft=null;state.dirty=false;state.loaded=false;state.preview=null;
+  if(el('enrollmentCertificate'))el('enrollmentCertificate').hidden=true;
+  ['ecDocument','ecRows','ecSignaturePreview','ecSealPreview'].forEach(function(id){if(el(id))el(id).innerHTML='';});if(el('ecDirector'))el('ecDirector').value='';if(el('ecAssetFile'))el('ecAssetFile').value='';if(el('ecVaultPassword'))el('ecVaultPassword').value='';profileBusy(false);cancelSignature();
+ }
+ async function changeInstitution(){if(!state.actor||!state.actor.super||!same(actor(),state.actor))return close();state.institution=el('ecInstitution').value;el('ecSearch').value='';await loadStudents();}
+ async function loadStudents(person){
+  cancelSignature();++state.assetTicket;++state.saveTicket;state.assetContext=null;state.saving=false;state.unlocking=false;profileBusy(false);
+  resetAttendance();state.selected=null;state.students=[];state.profile=null;state.draft=null;state.vault=null;state.dirty=false;el('ecVaultPassword').value='';el('ecRemember').checked=false;el('ecDirector').value='';el('ecSignaturePreview').innerHTML='';el('ecSealPreview').innerHTML='';el('ecStudent').innerHTML='<option>불러오는 중…</option>';status('명단을 불러오고 있습니다.');var ticket=state.ticket;
+  if(!allowed())return close();
+  try{
+   var result=await CBT_LEARNING_RECORDS.loadStudents(state.institution,state.actor);if(!guard(ticket))return;
+   state.students=result.students;var cohorts=Array.from(new Set(state.students.map(function(s){return s.cohort;}))).sort(function(a,b){return +b-+a;});
+   el('ecCohort').innerHTML=cohorts.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'기</option>';}).join('');
+   if(person&&cohorts.indexOf(cohort(person.cohort||person.기수))>=0)el('ecCohort').value=cohort(person.cohort||person.기수);
+   filter(person);var profileTicket=state.ticket;await loadProfile();if(guard(profileTicket))status('수강생과 기간을 선택해 주세요. 보관된 이전 기수 학생도 포함합니다.');
+  }catch(e){if(guard(ticket)){status('명단을 불러오지 못했습니다. '+(e.message||e),true);el('ecStudent').innerHTML='<option value="">다시 열어 주세요</option>';}}
+ }
+ function filter(person){
+  if(!allowed())return;var c=el('ecCohort').value,q=el('ecSearch').value.trim(),selected=state.selected;
+  var rows=state.students.filter(function(s){return s.cohort===c&&(!q||s.name.indexOf(q)>=0);});
+  el('ecStudent').innerHTML='<option value="">수강생을 선택하세요</option>'+rows.map(function(s){return '<option value="'+esc(s.key)+'">'+esc(s.name)+' ('+esc(s.birth)+')'+(s.archived?' · 보관':'')+'</option>';}).join('');
+  var match=person?rows.find(function(s){return s.name===person.name&&s.birth===birth(person.birth);}):selected&&rows.find(function(s){return s.key===selected.key;});
+  if(match){el('ecStudent').value=match.key;if(!selected||selected.key!==match.key)select();}else{state.selected=null;resetAttendance();el('ecFrom').value='';el('ecTo').value='';}
+ }
+ function profileForStudent(s){var list=typeof getAllUsers==='function'?getAllUsers():[];return list.find(function(u){return identity(u)===identity(s);})||{};}
+ function courseOf(s){
+  var profile=profileForStudent(s),value=str(profile.course||profile.과정||profile.구분);
+  if(/사회|^sw$/i.test(value))return 'sw';if(/조무|^nu$|^na$/i.test(value))return 'nu';if(/간호사|^rn$/i.test(value))return 'rn';if(/일반|신규|표준|^std$/i.test(value))return 'std';
+  if(s.institution===W&&s.cohort==='58'&&window.C58)return C58.course({name:s.name,birth:s.birth,기수:'58',기관명:W});
+  var data=s.institution===W&&s.cohort==='57'?window.__TT57:s.institution===M&&s.cohort==='41'?window.__TT41:null;
+  if(data){var members=data.자격소지자||{};for(var label in members)if((members[label]||[]).indexOf(s.name)>=0)return /사회/.test(label)?'sw':/조무/.test(label)?'nu':'rn';return 'std';}
+  return '';
+ }
+ function endAt(time){var t=str(time).replace(':','');if(!/^\d{4}$/.test(t))return '18:00';var n=+t.slice(0,2)*60+(+t.slice(2))+50;return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');}
+ function schedule(s,k){
+  var days=[],data,label={std:'표준',sw:'사회복지사',nu:'간호조무사',rn:'간호사'}[k];
+  if(s.institution===W&&s.cohort==='58'&&window.C58&&C58.courses[k])days=C58.courses[k].tt58||[];
+  else if(s.institution===M&&s.cohort==='41'&&window.__C41_SCHEDULE__&&__C41_SCHEDULE__[k])days=__C41_SCHEDULE__[k].tt||[];
+  if(days.length)return days.map(function(day){var periods=(day.p||[]).filter(function(p){return p.mode==='T'||p.mode==='P'||/^(이론|실기)/.test(p.g||'');});return {date:day.date,periods:periods.map(function(p){return +p.n;}),end:periods.length?(periods[periods.length-1].end||endAt(periods[periods.length-1].t)):'18:00'};}).filter(function(d){return d.periods.length;});
+  if(s.institution===W&&s.cohort==='57')data=window.__TT57;else if(s.institution===M&&s.cohort==='41')data=window.__TT41;
+  var map=data&&data.과정&&data.과정[label];if(!map)return [];
+  return Object.keys(map).sort().map(function(date){var ps=Object.keys(map[date]).filter(function(p){return map[date][p]==='T'||map[date][p]==='P';}).map(Number).sort(function(a,b){return a-b;});return {date:date,periods:ps,end:endAt(data.교시시각&&data.교시시각[ps[ps.length-1]])};});
+ }
+ function select(){
+  if(!allowed())return close();var key=el('ecStudent').value;state.selected=state.students.find(function(s){return s.key===key;})||null;resetAttendance();if(!state.selected)return;
+  var k=courseOf(state.selected);el('ecCourse').value=k;var list=schedule(state.selected,k),past=list.filter(function(d){var local=new Date(Date.now()+9*60*60*1000).toISOString();return d.date<local.slice(0,10)||(d.date===local.slice(0,10)&&d.end<=local.slice(11,16));});
+  el('ecFrom').value=list.length?list[0].date:'';el('ecTo').value=past.length?past[past.length-1].date:today();status('수강생: '+state.selected.name+' · '+state.selected.cohort+'기. 확인할 기간을 선택해 주세요.');
+ }
+ function changeCourse(){if(!allowed())return;resetAttendance();}
+ function rangeChanged(){if(!allowed())return;resetAttendance();}
+ async function readAbsences(s){
+  var col=s.institution===W&&['56','57','58'].indexOf(s.cohort)>=0?'sayu'+s.cohort:s.institution===M&&s.cohort==='41'?'sayu_main41':'';
+  if(!col)return {items:[],supported:false};
+  var names=[s.name];if(s.institution===W&&s.cohort==='57'){if(s.name==='김민지'&&s.birth==='570220')names.push('김순원');if(s.name==='정정옥'&&s.birth==='660615')names.push('정정욱');}
+  await window._FB.authReady;var snapshots=await Promise.all(names.map(function(n){var id=((s.institution===M?'main41_':'')+s.cohort+'기_'+n+'_'+s.birth).replace(/[\/.#$\[\]\s]/g,'_');return _FB.db.collection(col).doc(id).get({source:'server'});}));
+  var records=[];snapshots.forEach(function(snap,i){if(!snap.exists)return;var v=snap.data()||{};if((s.institution===M&&v.기관명!==s.institution)||(v.기관명&&v.기관명!==s.institution)||cohort(v.기수)!==s.cohort||v.성명!==names[i]||birth(v.생년월일)!==s.birth)throw new Error('사유서의 기관·학생 정보가 일치하지 않습니다.');records.push(v);});
+  if(records.length>1&&records.filter(function(v){return (v.items||[]).length;}).length>1)throw new Error('같은 학생의 사유서가 두 문서에 있습니다. 먼저 중복을 확인해 주세요.');
+  return {items:(records.find(function(v){return (v.items||[]).length;})||{}).items||[],supported:true};
+ }
+ async function calculate(){
+  if(!allowed()||!state.selected)return status('수강생을 선택해 주세요.',true);
+  var s=state.selected,k=el('ecCourse').value;if(!k)return status('교육과정을 선택해 주세요.',true);
+  resetAttendance();var ticket=state.ticket;status('선택한 학생의 시간표와 부재 내역을 불러오고 있습니다.');
+  try{var abs=await readAbsences(s);if(!guard(ticket,s))return;state.lessons=schedule(s,k);state.absenceItems=copy(abs.items);state.loaded=true;
+   el('ecSource').textContent=(state.lessons.length?'앱에 등록된 이론·실기 시간표':'이 기수의 연결된 시간표가 없습니다. 확인한 수업일을 직접 추가해 주세요.')+(abs.supported?' · 활성 사유서만 반영했습니다.':' · 연결된 사유서가 없어 수강시간을 직접 확인해야 합니다.')+' 실습·보충수업은 아래에서 추가할 수 있습니다.';
+   renderRows();status('초안을 불러왔습니다. 출결과 수강시간을 확인한 뒤 미리보기를 눌러 주세요.');
+  }catch(e){if(guard(ticket,s)){state.loaded=false;status('내역을 불러오지 못했습니다. '+(e.message||e),true);}}
+ }
+ function model(){return CERTIFICATE_CORE.create({student:state.selected,from:el('ecFrom').value,to:el('ecTo').value,issueDate:el('ecIssue').value,asOf:now(),lessons:state.lessons.concat(state.extra),absenceItems:state.absenceItems,overrides:state.overrides,confirmed:el('ecConfirmed').checked});}
+ function renderRows(){
+  resetDocument();if(!state.loaded)return;var m=model(),h='';
+  if(m.errors.length)h+='<p class="ec-note" style="color:#a81818">'+m.errors.map(esc).join('<br>')+'</p>';
+  h+='<div class="ec-table-wrap"><table class="ec-table"><thead><tr><th>날짜</th><th>예정</th><th>부재 교시 · 확인 사항</th><th>수강시간</th></tr></thead><tbody>';
+  m.rows.forEach(function(r){var explicit=Object.prototype.hasOwnProperty.call(state.overrides,r.date),value=explicit?state.overrides[r.date].hours:'';
+   h+='<tr'+(r.needsReview?' class="ec-review"':'')+'><td>'+esc(r.date)+'</td><td>'+r.scheduledHours+'시간</td><td>'+esc(r.detail||'등록 부재 없음')+(r.needsReview?'<br><b>수강시간 직접 확인 필요</b>':'')+'</td><td><input type="number" aria-label="'+esc(r.date)+' 수강시간" min="0" max="'+r.scheduledHours+'" step="1" placeholder="'+esc(r.suggestedHours==null?'확인':r.suggestedHours)+'" value="'+esc(value)+'" data-date="'+esc(r.date)+'" oninput="CBT_CERTIFICATE.editHours(this)" onchange="CBT_CERTIFICATE.setHours(this)"> 시간</td></tr>';
+  });
+  h+='</tbody></table></div><p class="ec-note">빈칸의 회색 숫자는 시간표에서 등록된 부재교시를 뺀 초안입니다. 실제와 다르면 수강시간을 수정해 주세요. 노란색 행은 시간을 직접 입력해야 합니다.</p>';
+  if(m.ready)h+='<p><b>수강 '+m.totalDays+'일 · '+m.totalHours+'시간</b></p>';
+  el('ecRows').innerHTML=h;
+ }
+ function editHours(input){if(!allowed())return;el('ecConfirmed').checked=false;var date=input.getAttribute('data-date'),v=input.value;if(v==='')delete state.overrides[date];else state.overrides[date]={hours:Number(v)};resetDocument();}
+ function setHours(input){editHours(input);if(allowed())renderRows();}
+ function confirmed(){if(allowed())renderRows();}
+ function addDay(){
+  if(!allowed()||!state.selected)return;if(!state.loaded)return status('시간표·부재 내역을 먼저 불러와 주세요.',true);var date=el('ecExtraDate').value,hours=Number(el('ecExtraHours').value);
+  if(!CERTIFICATE_CORE.validDate(date)||!Number.isInteger(hours)||hours<1||hours>8)return status('수업 날짜와 1~8시간의 수강시간을 입력해 주세요.',true);
+  if(date<el('ecFrom').value||date>el('ecTo').value)return status('확인 기간 안의 수업일을 선택해 주세요.',true);
+  if(state.lessons.concat(state.extra).some(function(d){return d.date===date;}))return status('이미 있는 수업일입니다. 표의 수강시간을 수정해 주세요.',true);
+  state.extra.push({date:date,periods:Array.from({length:hours},function(_,i){return i+1;}),end:'18:00'});state.overrides[date]={hours:hours};state.loaded=true;el('ecConfirmed').checked=false;renderRows();status('직접 확인한 수업일을 추가했습니다.');
+ }
+ // Only encrypted issuer profiles are shared. Never send plaintext assets or passphrases to Firestore.
+ var profileDb=null;
+ function database(){if(profileDb)return profileDb;profileDb=new Promise(function(resolve,reject){var req=indexedDB.open('koryo-certificate-private-v1',1);req.onupgradeneeded=function(){var d=req.result;d.createObjectStore('profiles',{keyPath:'institution'});d.createObjectStore('versions',{keyPath:'key'});};req.onsuccess=function(){resolve(req.result);};req.onerror=function(){reject(new Error('이 기기의 보관함을 열지 못했습니다.'));};});return profileDb;}
+ async function readProfile(inst){var d=await database();return new Promise(function(resolve,reject){var tx=d.transaction('profiles','readonly'),req=tx.objectStore('profiles').get(inst);req.onsuccess=function(){resolve(req.result||null);};req.onerror=function(){reject(new Error('기관장 정보를 불러오지 못했습니다.'));};});}
+ function defaultProfile(inst){return {institution:inst,directorName:inst===W?'심상욱':'',seal:'',signature:'',revision:''};}
+ function vaultMessage(message){el('ecVaultStatus').textContent=message;}
+ function profileBusy(busy){['ecVaultPassword','ecRemember','ecUnlock'].forEach(function(id){el(id).disabled=busy;});el('ecLock').disabled=state.saving;el('ecProfileFields').disabled=busy||!state.draft||!state.vault||['empty','ready'].indexOf(state.vault.status)<0;}
+ function acceptProfile(p,vault){state.profile=p;state.draft=copy(p);state.vault=vault;state.dirty=false;renderProfile();}
+ async function loadProfile(){var inst=state.institution,request=++state.profileTicket,snapshot=state.actor;
+  function current(){return allowed()&&same(snapshot,state.actor)&&inst===state.institution&&request===state.profileTicket;}
+  state.vault=null;el('ecProfileFields').disabled=true;el('ecUnlock').disabled=true;vaultMessage('기관 보관함을 확인하고 있습니다.');
+  try{var record=await CERTIFICATE_STORE.read(inst);if(!current())return;var envelope=record.envelope;
+   if(!envelope){var p=await readProfile(inst);if(!current())return;acceptProfile(p&&!p.encrypted?p:defaultProfile(inst),{status:'empty',envelope:null,key:null,salt:null});profileBusy(false);vaultMessage('처음 등록하는 기관입니다. 성함·서명·직인과 새 보관 암호를 입력한 뒤 저장해 주세요.');return;}
+   state.vault={status:'locked',envelope:envelope,key:null,salt:null};el('ecUnlock').disabled=false;
+   var remembered=await CERTIFICATE_STORE.recall(inst);if(!current())return;
+   if(remembered&&remembered.salt===envelope.salt){try{var unlocked=await CERTIFICATE_VAULT.open(envelope,remembered.key,inst);if(!current())return;acceptProfile(unlocked.profile,{status:'ready',envelope:envelope,key:unlocked.key,salt:unlocked.salt});profileBusy(false);el('ecRemember').checked=true;vaultMessage('이 기관의 최신 서명·직인을 불러왔습니다.');return;}catch(ignore){if(!current())return;}}
+   el('ecProfile').open=true;vaultMessage('보관 암호를 입력하고 기관 보관함을 불러와 주세요.');el('ecProfileStatus').textContent='서명·직인은 보관함을 연 뒤 확인할 수 있습니다.';
+  }catch(e){if(current()){state.vault={status:'error'};state.profile=null;state.draft=null;vaultMessage('기관 보관함을 확인하지 못했습니다. '+(e.message||e));}}
+ }
+ async function unlockProfile(){
+  if(!allowed()||state.saving||state.unlocking)return;if(state.dirty)return status('변경한 기관장 정보를 먼저 저장하거나 수정 취소해 주세요.',true);var inst=state.institution,snapshot=state.actor,request=++state.profileTicket,password=el('ecVaultPassword').value,remember=el('ecRemember').checked;el('ecVaultPassword').value='';++state.assetTicket;state.assetContext=null;cancelSignature();resetDocument();state.unlocking=true;profileBusy(true);
+  function current(){return allowed()&&state.unlocking&&same(snapshot,state.actor)&&inst===state.institution&&request===state.profileTicket;}
+  vaultMessage('기관 보관함을 여는 중입니다.');
+  try{var record=await CERTIFICATE_STORE.read(inst);if(!current())return;if(!record.envelope)throw new Error('등록된 보관함이 없습니다. 처음 등록은 성함·서명·직인과 보관 암호를 입력한 뒤 저장해 주세요.');
+   var unlocked=await CERTIFICATE_VAULT.unlock(record.envelope,password,inst);password='';if(!current())return;
+   if(remember)await CERTIFICATE_STORE.remember(inst,{key:unlocked.key,salt:unlocked.salt});else await CERTIFICATE_STORE.forget(inst);if(!current())return;
+   acceptProfile(unlocked.profile,{status:'ready',envelope:record.envelope,key:unlocked.key,salt:unlocked.salt});resetDocument();vaultMessage('기관 보관함을 열었습니다. 같은 기관의 기기에서 등록한 최신 정보입니다.');
+  }catch(e){password='';if(current())vaultMessage(e.message||String(e));}finally{password='';if(current()){state.unlocking=false;profileBusy(false);}}
+ }
+ async function lockProfile(){if(!allowed()||state.saving)return;var inst=state.institution,request=++state.profileTicket;++state.assetTicket;state.unlocking=false;state.assetContext=null;cancelSignature();resetDocument();state.profile=null;state.draft=null;state.dirty=false;state.vault=null;profileBusy(false);el('ecProfileFields').disabled=true;el('ecDirector').value='';el('ecSignaturePreview').innerHTML='';el('ecSealPreview').innerHTML='';el('ecVaultPassword').value='';try{await CERTIFICATE_STORE.forget(inst);if(allowed()&&inst===state.institution&&request===state.profileTicket)await loadProfile();}catch(e){if(allowed()&&inst===state.institution&&request===state.profileTicket)vaultMessage(e.message||String(e));}}
+
+ function renderProfile(){el('ecDirector').value=state.draft.directorName;['signature','seal'].forEach(function(k){el(k==='seal'?'ecSealPreview':'ecSignaturePreview').innerHTML=state.draft[k]?'<img alt="'+(k==='seal'?'기관 직인':'기관장 서명')+'" src="'+esc(state.draft[k])+'">':'<span>등록된 '+(k==='seal'?'직인':'서명')+' 없음</span>';});el('ecProfileStatus').textContent=state.dirty?'변경사항이 있습니다. 기관장 정보를 저장해 주세요.':'저장한 정보는 다음 확인서에도 자동 적용됩니다.';}
+ function directorChanged(){if(!allowed()||!state.draft||state.saving||state.unlocking)return;++state.assetTicket;cancelSignature();var v=el('ecDirector').value.trim();if(v!==state.draft.directorName&&state.draft.signature)state.draft.signature='';state.draft.directorName=v;state.dirty=true;renderProfile();resetDocument();}
+ function resetProfile(){if(!allowed()||!state.profile||state.saving||state.unlocking)return;++state.assetTicket;cancelSignature();state.draft=copy(state.profile);state.dirty=false;renderProfile();resetDocument();}
+ async function saveProfile(){
+  if(!allowed()||!state.draft||state.saving||state.unlocking||!state.vault||['empty','ready'].indexOf(state.vault.status)<0)return;var p=copy(state.draft),request=++state.saveTicket,inst=state.institution,snapshot=state.actor,vault=state.vault,password=el('ecVaultPassword').value,remember=el('ecRemember').checked;if(!p.directorName.trim())return status('기관장 성함을 입력해 주세요.',true);p.directorName=p.directorName.trim();p.institution=inst;p.updatedAt=now();p.revision=crypto.randomUUID();
+  function current(){return allowed()&&same(snapshot,state.actor)&&request===state.saveTicket&&inst===state.institution;}
+  ++state.assetTicket;cancelSignature();state.saving=true;profileBusy(true);el('ecVaultPassword').value='';
+  try{var sealed=vault.key?{envelope:await CERTIFICATE_VAULT.seal(p,vault.key,vault.salt),key:vault.key,salt:vault.salt}:await CERTIFICATE_VAULT.create(p,password);password='';if(!current())return;
+   var saved=await CERTIFICATE_STORE.save(inst,sealed.envelope,vault.envelope?vault.envelope.revision:null);if(!current())return;
+   var verified=await CERTIFICATE_VAULT.open(saved,sealed.key,inst);if(!current())return;
+   state.vault={status:'ready',envelope:saved,key:sealed.key,salt:sealed.salt};state.profile=verified.profile;state.draft=copy(verified.profile);state.dirty=false;renderProfile();resetDocument();
+   var localWarning='';try{if(remember)await CERTIFICATE_STORE.remember(inst,{key:sealed.key,salt:sealed.salt});else await CERTIFICATE_STORE.forget(inst);}catch(localError){localWarning=' 다음번에는 보관 암호로 다시 열어 주세요.';}if(!current())return;
+   try{var d=await database();if(!current())return;
+   var audit={institution:inst,revision:p.revision,updatedAt:p.updatedAt,encrypted:true,envelope:copy(saved)};
+   await new Promise(function(resolve,reject){var tx=d.transaction(['profiles','versions'],'readwrite');tx.objectStore('profiles').put(audit);tx.objectStore('versions').put(Object.assign({key:JSON.stringify([inst,p.revision])},audit));tx.oncomplete=resolve;tx.onerror=function(){reject(new Error('기관장 정보 저장에 실패했습니다.'));};tx.onabort=tx.onerror;});
+   var check=await readProfile(inst);if(!check||!check.encrypted||check.revision!==p.revision||JSON.stringify(check.envelope)!==JSON.stringify(saved))throw new Error('이 기기의 수정 이력을 확인하지 못했습니다.');}catch(localAuditError){localWarning+=' 이 기기의 수정 이력 보관을 확인해 주세요.';}
+   if(!current())return;vaultMessage('기관별 암호화 보관함 저장과 서버 재확인을 마쳤습니다. 다른 기기에서도 불러올 수 있습니다.'+localWarning);status('기관장 성함·서명·직인을 저장했습니다. 새로 만드는 확인서에 적용됩니다.');
+  }catch(e){if(current())status(e.message||String(e),true);}finally{password='';if(current()){state.saving=false;profileBusy(false);}}
+ }
+ function chooseImage(kind){if(!allowed()||!state.draft||state.saving||state.unlocking)return;cancelSignature();state.assetKind=kind;state.assetContext={institution:state.institution,request:++state.assetTicket};el('ecAssetFile').value='';el('ecAssetFile').click();}
+ async function imageSelected(input){
+  if(!allowed()||!state.draft||state.saving||state.unlocking)return;var f=input.files&&input.files[0],kind=state.assetKind,ctx=state.assetContext,inst=state.institution;if(!f||!ctx)return;
+  function current(){return allowed()&&!state.saving&&!state.unlocking&&inst===state.institution&&ctx.institution===inst&&ctx.request===state.assetTicket;}
+  try{
+   if(['seal','signature'].indexOf(kind)<0||!/^image\/(png|jpeg|webp)$/.test(f.type)||f.size>10*1024*1024)throw new Error('10MB 이하의 PNG·JPG·WEBP 이미지로 등록해 주세요.');
+   var data=await new Promise(function(resolve,reject){var r=new FileReader();r.onload=function(){resolve(r.result);};r.onerror=function(){reject(new Error('이미지 파일을 읽지 못했습니다.'));};r.readAsDataURL(f);});
+   var img=await new Promise(function(resolve,reject){var im=new Image();im.onload=function(){resolve(im);};im.onerror=function(){reject(new Error('이미지를 열지 못했습니다.'));};im.src=data;});
+   if(!current())return;if(!img.width||!img.height||img.width*img.height>40000000)throw new Error('이미지 크기를 확인해 주세요.');
+   var ratio=Math.min(1,800/Math.max(img.width,img.height)),canvas=document.createElement('canvas'),value='';for(var attempt=0;attempt<9;attempt++){canvas.width=Math.max(1,Math.round(img.width*ratio));canvas.height=Math.max(1,Math.round(img.height*ratio));canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);value=canvas.toDataURL('image/png');if(value.length<=240000)break;ratio*=.75;}if(value.length>240000)throw new Error('이미지가 너무 큽니다. 서명·직인 부분만 담은 이미지로 등록해 주세요.');
+   state.draft[kind]=value;state.dirty=true;renderProfile();resetDocument();
+  }catch(e){if(current())status(e.message||String(e),true);}finally{if(ctx.request===state.assetTicket)input.value='';}
+ }
+ var drawing=false,ink=false,last=null;
+ function clearSignature(){var c=el('ecSignaturePad');if(!c)return;var ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ink=false;drawing=false;last=null;}
+ function drawSignature(){if(!allowed()||!state.draft||state.saving||state.unlocking)return;++state.assetTicket;state.signatureContext={institution:state.institution,request:state.assetTicket,director:state.draft.directorName};el('ecSignatureDialog').hidden=false;el('enrollmentCertificate').inert=true;clearSignature();el('ecSignatureDialog').querySelector('button').focus();}
+ function cancelSignature(){state.signatureContext=null;if(el('ecSignatureDialog'))el('ecSignatureDialog').hidden=true;if(el('enrollmentCertificate'))el('enrollmentCertificate').inert=false;clearSignature();}
+ function useSignature(){var ctx=state.signatureContext;if(!allowed()||!state.draft||state.saving||state.unlocking||!ctx||ctx.institution!==state.institution||ctx.request!==state.assetTicket||ctx.director!==state.draft.directorName)return cancelSignature();if(!ink)return alert('서명 칸에 직접 서명해 주세요.');state.draft.signature=el('ecSignaturePad').toDataURL('image/png');state.dirty=true;renderProfile();resetDocument();cancelSignature();}
+ var pad=el('ecSignaturePad');
+ function point(e){var r=pad.getBoundingClientRect();return {x:(e.clientX-r.left)*pad.width/r.width,y:(e.clientY-r.top)*pad.height/r.height};}
+ pad.addEventListener('pointerdown',function(e){if(!allowed()||el('ecSignatureDialog').hidden)return;e.preventDefault();drawing=true;last=point(e);pad.setPointerCapture(e.pointerId);});
+ pad.addEventListener('pointermove',function(e){if(!drawing||!allowed())return;e.preventDefault();var p=point(e),ctx=pad.getContext('2d');ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.strokeStyle='#111';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke();ink=true;last=p;});
+ ['pointerup','pointercancel','lostpointercapture'].forEach(function(type){pad.addEventListener(type,function(){drawing=false;last=null;});});
+ async function waitImages(doc){if(doc.fonts&&doc.fonts.ready)await doc.fonts.ready;await Promise.all(Array.from(doc.images).map(function(img){return new Promise(function(resolve,reject){if(img.complete)return img.naturalWidth?resolve():reject(new Error('서명·직인 이미지를 확인해 주세요.'));var t=setTimeout(function(){reject(new Error('이미지 확인 시간이 초과되었습니다.'));},10000);img.onload=function(){clearTimeout(t);resolve();};img.onerror=function(){clearTimeout(t);reject(new Error('서명·직인 이미지를 열지 못했습니다.'));};});}));}
+ async function preview(){
+  if(!allowed()||!state.loaded||!state.selected)return status('수강생과 기간의 내역을 먼저 불러와 주세요.',true);
+  if(state.saving||state.unlocking)return status('기관장 정보 확인이 끝난 뒤 미리보기를 눌러 주세요.',true);
+  if(state.dirty){el('ecProfile').open=true;return status('기관장 정보의 변경사항을 먼저 저장하거나 취소해 주세요.',true);}
+  var m=model();if(!m.ready)return status((m.errors||[]).join(' / ')||'수강시간을 확인하고 출결 확인란을 체크해 주세요.',true);
+  var profile=state.profile;if(!profile||!profile.directorName){el('ecProfile').open=true;return status('기관장 성함을 입력하고 저장해 주세요.',true);}
+  resetDocument();var ticket=state.ticket,pt=state.previewTicket,s=state.selected,html;
+  try{html=CERTIFICATE_CORE.documentHtml(m,profile);}catch(e){return status(e.message||String(e),true);}
+  var frame=document.createElement('iframe');frame.title='수강확인서 미리보기';frame.className='ec-preview';frame.setAttribute('referrerpolicy','no-referrer');frame.onload=async function(){frame.onload=null;try{await waitImages(frame.contentDocument);if(!guard(ticket,s)||pt!==state.previewTicket)return;
+   var pages=frame.contentDocument.querySelectorAll('.certificate-page');if(!pages.length)throw new Error('확인서 페이지를 만들지 못했습니다.');
+   for(var i=0;i<pages.length;i++){var footer=pages[i].querySelector('footer'),content=footer&&footer.previousElementSibling;if(!footer||!content||pages[i].scrollHeight>pages[i].clientHeight+2||content.getBoundingClientRect().bottom>footer.getBoundingClientRect().top-3)throw new Error('확인서 내용이 용지를 넘습니다. 기간을 나누어 출력해 주세요.');}
+   state.preview={frame:frame,model:m,ticket:ticket,previewTicket:pt,studentKey:s.key,revision:profile.revision};el('ecPrint').disabled=false;status(m.totalDays+'일 · '+m.totalHours+'시간 수강확인서가 준비되었습니다. 출력 전에 확인해 주세요.');
+  }catch(e){if(guard(ticket,s)&&pt===state.previewTicket){resetDocument();status(e.message||String(e),true);}}};frame.srcdoc=html;el('ecDocument').appendChild(frame);
+ }
+ function print(){var p=state.preview;if(!allowed()||state.saving||state.unlocking||!p||!guard(p.ticket)||p.previewTicket!==state.previewTicket||!state.selected||state.selected.key!==p.studentKey||state.profile.revision!==p.revision)return;try{p.frame.contentWindow.focus();p.frame.contentWindow.print();}catch(e){status('인쇄창을 열지 못했습니다. 다시 시도해 주세요.',true);}}
+ document.addEventListener('keydown',function(e){if(state.open&&e.key==='Escape'){if(!el('ecSignatureDialog').hidden)cancelSignature();else close();}});
+ window.CBT_CERTIFICATE={open:open,openFromRow:function(button){return open(button.getAttribute('data-inst'),{name:button.getAttribute('data-name'),birth:button.getAttribute('data-birth'),cohort:button.getAttribute('data-cohort')});},close:close,changeInstitution:changeInstitution,filter:filter,select:select,course:changeCourse,rangeChanged:rangeChanged,invalidate:invalidate,calculate:calculate,editHours:editHours,setHours:setHours,confirmed:confirmed,addDay:addDay,directorChanged:directorChanged,resetProfile:resetProfile,saveProfile:saveProfile,unlockProfile:unlockProfile,lockProfile:lockProfile,chooseImage:chooseImage,imageSelected:imageSelected,drawSignature:drawSignature,clearSignature:clearSignature,cancelSignature:cancelSignature,useSignature:useSignature,preview:preview,print:print};
+})();
+
+</script>
+<!-- ENROLLMENT_CERTIFICATE_END -->
 
 </body>
 </html>
