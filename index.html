@@ -2512,6 +2512,7 @@ window.signatureWhite = function(canvas, context){
       <span id="sdMeName"></span>
       <button class="dash-btn" onclick="CBT_ADMIN_LEARNING.open()">📈 학습 기록</button>
       <button class="dash-btn" onclick="CBT_CERTIFICATE.open()">📄 수강확인서</button>
+      <button class="dash-btn" onclick="CBT_PHOTO_SHEET.open()">📷 사진 자동 정리</button>
       <button class="dash-btn" onclick="internOpen()">📅 실습일정</button>
       <button class="dash-btn" onclick="sayuOpenAdmin('고려요양보호사교육원 원주점')">📄 원주점 사유서</button>
       <button class="dash-btn" onclick="sayuOpenAdmin('고려요양보호사교육원')">📄 횡성 41기 사유서</button>
@@ -2579,6 +2580,7 @@ window.signatureWhite = function(canvas, context){
       <h3 id="usrUpTitle">사용자 관리</h3>
       <button onclick="CBT_ADMIN_LEARNING.open()" style="margin-right:6px">📈 학습 기록</button>
       <button onclick="CBT_CERTIFICATE.open()" style="margin-right:6px">📄 수강확인서</button>
+      <button onclick="CBT_PHOTO_SHEET.open()" style="margin-right:6px">📷 사진 자동 정리</button>
       <button onclick="oriAdminOpen()" style="margin-right:6px">📋 57기 오리엔테이션</button>
       <button onclick="ori58Open()" style="margin-right:6px">📋 58기 오리엔테이션</button>
       <button onclick="sayuOpenAdmin()" style="margin-right:6px">📄 사유서</button>
@@ -4043,6 +4045,7 @@ function deleteInst(adminId){
 
 // === 기관 관리자 로그아웃 ===
 function adminLogout(){
+  if(window.CBT_PHOTO_SHEET)window.CBT_PHOTO_SHEET.close();
   if(window.CBT_CERTIFICATE)window.CBT_CERTIFICATE.close();
   if(window.CBT_ADMIN_LEARNING)window.CBT_ADMIN_LEARNING.close();
   if(typeof window.intern58Reset==='function')window.intern58Reset();
@@ -22336,6 +22339,213 @@ window.__C41_SCHEDULE__ = {"std":{"name":"신규","tt":[{"date":"2026-10-12","w"
 
 </script>
 <!-- ENROLLMENT_CERTIFICATE_END -->
+
+
+<!-- PHOTO_SHEET_START -->
+<style>
+#photoSheetTool{position:fixed;inset:0;z-index:12600;background:#f4f6fa;color:#172334;overflow:auto;color-scheme:light}#photoSheetTool[hidden]{display:none!important}#photoSheetTool *{box-sizing:border-box}#photoSheetTool .ps-top{position:sticky;top:0;background:#fff;border-bottom:1px solid #dde3ec;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;z-index:2}#photoSheetTool h2{margin:0;font-size:21px}#photoSheetTool .ps-wrap{max-width:1180px;margin:auto;padding:18px}#photoSheetTool .ps-box{background:white;border:1px solid #dde3ec;border-radius:12px;padding:18px;margin-bottom:16px}#photoSheetTool h3{font-size:17px;margin:0 0 12px}#photoSheetTool button{padding:10px 16px;border:1px solid #b8c6d7;background:#fff;border-radius:8px;color:#172334;cursor:pointer;font-size:14px}#photoSheetTool button:disabled{opacity:.45;cursor:default}#photoSheetTool .ps-primary{background:#245b83;color:#fff;border-color:#245b83}#photoSheetTool label{display:block;margin:10px 0;font-size:14px}#photoSheetTool input,#photoSheetTool select{font:inherit;padding:7px;max-width:100%}#photoSheetTool input[type=checkbox]{width:18px;height:18px;vertical-align:middle}#photoSheetTool .ps-note{font-size:14px;color:#526276;line-height:1.65}#psStatus{padding:12px;border-radius:8px;background:#e8f1f8;white-space:pre-wrap}#psStatus.ps-error{background:#fff0ed;color:#932c22}#psNames{max-height:185px;overflow:auto;line-height:1.8;font-size:14px;margin:12px 0}#psResults{display:grid;grid-template-columns:repeat(auto-fill,minmax(245px,1fr));gap:14px}#photoSheetTool .ps-card{border:1px solid #cbd5e2;background:white;padding:12px;border-radius:9px}#photoSheetTool .ps-card canvas{display:block;max-width:100%;max-height:300px;margin:6px auto;background:#eee;border:1px solid #ddd}#photoSheetTool .ps-card input[type=number]{width:70px}#photoSheetTool .ps-fields{display:flex;gap:5px;flex-wrap:wrap}#photoSheetTool .ps-fields label{font-size:12px}#psPrintFrame{display:block;width:100%;height:650px;border:1px solid #b8c6d7;background:white}#psPrintFrame[hidden]{display:none}#photoSheetTool .ps-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}@media(max-width:600px){#photoSheetTool .ps-wrap{padding:10px}#photoSheetTool .ps-box{padding:13px}#photoSheetTool h2{font-size:18px}}
+</style>
+<section id="photoSheetTool" hidden aria-label="사진 자동 정리">
+ <header class="ps-top"><h2>사진 자동 정리</h2><button type="button" onclick="CBT_PHOTO_SHEET.close()">닫기 ✕</button></header>
+ <div class="ps-wrap">
+  <div class="ps-box"><h3>1. 개강보고 불러오기</h3><p class="ps-note">엑셀에 적힌 순서대로 사진 칸을 만듭니다. 이름과 생년월일 앞 6자리만 사용하며, 파일과 사진은 이 화면에서만 처리합니다. 창을 닫으면 작업 내용이 지워집니다.</p>
+   <label>개강보고 또는 응시원서 엑셀<input id="psWorkbook" type="file" accept=".xlsx,.xls" onchange="CBT_PHOTO_SHEET.workbook(this)"></label>
+   <label>명단 시트<select id="psSheet" disabled onchange="CBT_PHOTO_SHEET.sheet()"></select></label>
+   <label>용지 제목<input id="psTitle" maxlength="60" value="교육생 사진 부착용지" oninput="CBT_PHOTO_SHEET.titleChanged()"></label>
+   <div id="psNames">개강보고를 선택해 주세요.</div>
+   <label><input id="psRosterChecked" type="checkbox" onchange="CBT_PHOTO_SHEET.rosterChecked()"> 이름·생년월일과 사진 붙일 순서를 확인했습니다.</label>
+   <div class="ps-actions"><button id="psMake" class="ps-primary" disabled onclick="CBT_PHOTO_SHEET.preview()">부착용지 미리보기</button><button id="psPrint" disabled onclick="CBT_PHOTO_SHEET.print()">A4 용지 인쇄</button></div>
+   <p class="ps-note">한 장에 12명씩, 여권사진(35×45mm)이 들어갑니다. 증명사진(30×40mm)도 점선 칸 중앙에 붙이세요. 인쇄는 A4 세로·실제 크기(100%)·여백 없음·머리글/바닥글 끄기로 설정하세요. 스캔은 컬러 300dpi 이상 JPG 또는 PNG로, 용지의 검은 네모 4개가 모두 나오게 해 주세요.</p>
+   <iframe id="psPrintFrame" title="사진 부착용지 미리보기" hidden referrerpolicy="no-referrer"></iframe>
+  </div>
+  <div class="ps-box"><h3>2. 사진을 붙인 용지 스캔 불러오기</h3><p class="ps-note">위에서 만든 부착용지만 자동 인식합니다. 여러 쪽을 한 번에 선택해도 용지 번호로 순서를 맞춥니다. 예전에 손으로 배치한 스캔이나 PDF는 사용할 수 없습니다.</p>
+   <label>스캔 이미지 (JPG·PNG, 여러 파일 가능)<input id="psScans" type="file" accept="image/jpeg,image/png" multiple disabled onchange="CBT_PHOTO_SHEET.scans(this)"></label>
+   <div id="psStatus" role="status" aria-live="polite">먼저 개강보고를 불러와 주세요.</div>
+  </div>
+  <div class="ps-box"><h3>3. 잘린 사진 확인 후 저장</h3><p class="ps-note">사진 테두리가 뚜렷하면 자동으로 맞추고, 불확실하면 사진이 잘리지 않도록 칸 전체를 남깁니다. 사진이 없거나 테두리 확인이 어려운 칸은 직접 확인해 주세요. 범위는 각 칸 안의 mm 값입니다. 확인한 사진에 체크하면 ZIP에 포함됩니다.</p>
+   <div class="ps-actions"><button id="psZip" disabled class="ps-primary" onclick="CBT_PHOTO_SHEET.download()">체크한 사진 ZIP 저장</button><span id="psCount" class="ps-note"></span></div>
+   <div id="psResults" style="margin-top:16px"></div>
+  </div>
+ </div>
+</section>
+
+<script id="photo-sheet-core">
+(function(root){
+ 'use strict';
+ const PER_PAGE=12,MARKS=[[10,20],[200,20],[200,290],[10,290]];
+ const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function birth(value){
+  if(value instanceof Date)return String(value.getFullYear()).slice(-2)+String(value.getMonth()+1).padStart(2,'0')+String(value.getDate()).padStart(2,'0');
+  let v=String(value==null?'':value).trim();
+  v=/^\d{6}\s*[-−–]/.test(v)?v.slice(0,6):v.replace(/\D/g,'');
+  if(v.length===13)v=v.slice(0,6);
+  if(v.length===8)v=v.slice(2);if(v.length===5)v='0'+v;
+  if(!/^\d{6}$/.test(v))throw Error('생년월일을 6자리로 확인해 주세요.');
+  const y=2000+Number(v.slice(0,2)),m=+v.slice(2,4),d=+v.slice(4),date=new Date(Date.UTC(y,m-1,d));
+  if(date.getUTCMonth()!==m-1||date.getUTCDate()!==d)throw Error('존재하지 않는 생년월일입니다.');return v;
+ }
+ function roster(rows){
+  let header=-1,nc=-1,bc=-1;
+  for(let r=0;r<Math.min(rows.length,30);r++){
+   const row=rows[r].map(x=>String(x==null?'':x).replace(/\s/g,''));
+   const n=row.findIndex(x=>/^(성명|이름|교육생명)$/.test(x));
+   const b=row.findIndex(x=>/^(생년월일|주민등록번호|주민번호)$/.test(x));
+   if(n>=0&&b>=0){header=r;nc=n;bc=b;break;}
+  }
+  if(header<0)throw Error('성명(이름)과 생년월일(주민등록번호) 제목을 찾지 못했습니다.');
+  const out=[],seen=new Set();
+  for(let r=header+1;r<rows.length;r++){
+   const name=String(rows[r][nc]||'').trim();if(!name)continue;
+   if(/예시|삭제금지/.test(String(rows[r][0]))||/^(성명|이름)$/.test(name))continue;
+   if(!/^[가-힣a-zA-Z· .]{2,40}$/.test(name))throw Error((r+1)+'행 이름을 확인해 주세요: '+name);
+   let dob;try{dob=birth(rows[r][bc]);}catch(e){throw Error((r+1)+'행 '+name+': '+e.message);}
+   const filename=name+'_'+dob+'.jpg';if(seen.has(filename))throw Error(name+' ('+dob+')가 중복되어 있습니다. 명단을 확인해 주세요.');
+   seen.add(filename);out.push({number:out.length+1,name,birth:dob,filename});
+  }
+  if(!out.length)throw Error('명단이 없습니다.');if(out.length>600)throw Error('한 번에 600명까지 처리할 수 있습니다.');return out;
+ }
+ function hash(list){let n=2166136261;for(const c of JSON.stringify(list.map(p=>[p.name,p.birth]))){n^=c.charCodeAt(0);n=Math.imul(n,16777619);}return n>>>0;}
+ function code(list,page){return [(hash(list)>>>16)&65535,hash(list)&65535,page+1,0x6a3];}
+ function bits(list,page){return code(list,page).flatMap(n=>Array.from({length:16},(_,i)=>(n>>>(15-i))&1));}
+ function slot(i){return {x:15+(i%3)*60+11,y:31+Math.floor(i/3)*64+10,w:38,h:48};}
+ function sheetHtml(list,title){
+  let html='';const count=Math.ceil(list.length/PER_PAGE);
+  for(let page=0;page<count;page++){
+   let svg='<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297" style="font-family:Malgun Gothic,Arial,sans-serif">';
+   svg+='<rect width="210" height="297" fill="white"/><text x="105" y="7" font-size="4" text-anchor="middle">'+esc(title||'교육생 사진 부착용지')+'</text>';
+   svg+='<text x="105" y="12" font-size="2.6" text-anchor="middle">'+(page+1)+' / '+count+'쪽 · 사진은 점선 안 중앙에 · 검은 네모와 위쪽 표시를 가리지 마세요</text>';
+   MARKS.forEach(([x,y],i)=>{const size=i===0?7:5;svg+='<rect x="'+(x-size/2)+'" y="'+(y-size/2)+'" width="'+size+'" height="'+size+'" fill="#000"/>';});
+   bits(list,page).forEach((b,i)=>{svg+='<rect x="'+(41+i*2)+'" y="16" width="1.3" height="1.3" fill="'+(b?'#000':'#fff')+'"/>';});
+   for(let i=0;i<PER_PAGE;i++){
+    const p=list[page*PER_PAGE+i];if(!p)break;const s=slot(i),x=s.x-11,y=s.y-10;
+    svg+='<rect x="'+x+'" y="'+y+'" width="60" height="61" fill="none" stroke="#aaa" stroke-width=".2"/>';
+    svg+='<text x="'+(x+3)+'" y="'+(y+5)+'" font-size="3.2">'+p.number+'. '+esc(p.name)+'　'+p.birth+'</text>';
+    svg+='<rect x="'+s.x+'" y="'+s.y+'" width="'+s.w+'" height="'+s.h+'" fill="none" stroke="#bbb" stroke-width=".18" stroke-dasharray="1,1"/>';
+    svg+='<text x="'+(s.x+s.w/2)+'" y="'+(s.y+22)+'" text-anchor="middle" font-size="2.5" fill="#ccc">사진 중앙에 부착</text><text x="'+(s.x+s.w/2)+'" y="'+(s.y+26)+'" text-anchor="middle" font-size="2" fill="#ccc">여권 35×45 / 증명 30×40 mm</text>';
+   }
+   svg+='</svg>';html+='<section class="page">'+svg+'</section>';
+  }
+  return '<!doctype html><html lang="ko"><meta charset="utf-8"><title>사진 부착용지</title><style>@page{size:A4 portrait;margin:0}*{box-sizing:border-box}body{margin:0;background:#ddd}.page{width:210mm;height:297mm;background:white;break-after:page;overflow:hidden}.page:last-child{break-after:auto}@media screen{.page{margin:8px auto}}@media print{body{background:white}}</style>'+html+'</html>';
+ }
+ function solve(a,b){const n=b.length;a=a.map((r,i)=>r.concat(b[i]));for(let k=0;k<n;k++){let j=k;for(let i=k+1;i<n;i++)if(Math.abs(a[i][k])>Math.abs(a[j][k]))j=i;[a[k],a[j]]=[a[j],a[k]];if(Math.abs(a[k][k])<1e-9)throw Error('용지 모서리를 확인해 주세요.');let v=a[k][k];for(let c=k;c<=n;c++)a[k][c]/=v;for(let i=0;i<n;i++)if(i!==k){v=a[i][k];for(let c=k;c<=n;c++)a[i][c]-=v*a[k][c];}}return a.map(r=>r[n]);}
+ function homography(from,to){const a=[],b=[];for(let i=0;i<4;i++){const [x,y]=from[i],[u,v]=to[i];a.push([x,y,1,0,0,0,-u*x,-u*y],[0,0,0,x,y,1,-v*x,-v*y]);b.push(u,v);}return solve(a,b);}
+ function project(h,x,y){const d=h[6]*x+h[7]*y+1;return [(h[0]*x+h[1]*y+h[2])/d,(h[3]*x+h[4]*y+h[5])/d];}
+ function markers(data,w,h){
+  const seen=new Uint8Array(w*h),queue=new Int32Array(w*h),found=[];
+  const dark=i=>data[i*4]<85&&data[i*4+1]<85&&data[i*4+2]<85;
+  for(let i=0;i<w*h;i++){
+   if(seen[i]||!dark(i))continue;seen[i]=1;let head=0,tail=1;queue[0]=i;let x0=w,y0=h,x1=0,y1=0;
+   while(head<tail){const p=queue[head++],x=p%w,y=Math.floor(p/w);x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);
+    for(const q of [x? p-1:-1,x<w-1?p+1:-1,y?p-w:-1,y<h-1?p+w:-1])if(q>=0&&!seen[q]&&dark(q)){seen[q]=1;queue[tail++]=q;}
+   }
+   const bw=x1-x0+1,bh=y1-y0+1,cx=(x0+x1)/2,cy=(y0+y1)/2;
+   if(bw>=w*.012&&bw<=w*.06&&bh/bw>.72&&bh/bw<1.4&&tail/(bw*bh)>.82&&((cx<w*.22||cx>w*.78)&&(cy<h*.23||cy>h*.77)))found.push({x:cx,y:cy,area:tail});
+  }
+  const corners=[[0,0],[w,0],[w,h],[0,h]].map(([x,y])=>found.filter(p=>(p.x<w/2)===(x===0)&&(p.y<h/2)===(y===0)).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]);
+  if(corners.some(p=>!p))throw Error('검은 기준 네모 4개를 찾지 못했습니다. 이 기능에서 인쇄한 용지를 전체가 보이게 다시 스캔해 주세요.');
+  const max=corners.reduce((best,p,i)=>p.area>corners[best].area?i:best,0);
+  const areas=corners.map(p=>p.area).sort((a,b)=>a-b);if(areas[3]/areas[2]<1.3||areas[3]/areas[0]>3.5)throw Error('용지 방향 표시를 확인할 수 없습니다. 용지 전체를 다시 스캔해 주세요.');
+  return Array.from({length:4},(_,i)=>corners[(max+i)%4]).map(p=>[p.x,p.y]);
+ }
+ function rectified(canvas){
+  const small=document.createElement('canvas'),ratio=Math.min(1,1100/Math.max(canvas.width,canvas.height));small.width=Math.round(canvas.width*ratio);small.height=Math.round(canvas.height*ratio);small.getContext('2d').drawImage(canvas,0,0,small.width,small.height);
+  const centers=markers(small.getContext('2d').getImageData(0,0,small.width,small.height).data,small.width,small.height).map(p=>p.map(v=>v/ratio));
+  const h=homography(MARKS,centers),scale=10,out=document.createElement('canvas');out.width=210*scale;out.height=297*scale;
+  const src=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height),ctx=out.getContext('2d'),dst=ctx.createImageData(out.width,out.height);
+  for(let y=0;y<out.height;y++)for(let x=0;x<out.width;x++){const [u,v]=project(h,x/scale,y/scale),ix=Math.round(u),iy=Math.round(v),d=(y*out.width+x)*4;if(ix>=0&&iy>=0&&ix<canvas.width&&iy<canvas.height){const s=(iy*canvas.width+ix)*4;dst.data[d]=src.data[s];dst.data[d+1]=src.data[s+1];dst.data[d+2]=src.data[s+2];}else dst.data[d]=dst.data[d+1]=dst.data[d+2]=255;dst.data[d+3]=255;}
+  ctx.putImageData(dst,0,0);return out;
+ }
+ function readCode(canvas,list){
+  const ctx=canvas.getContext('2d'),values=[];
+  for(let block=0;block<4;block++){let n=0;for(let i=0;i<16;i++){let p=ctx.getImageData(Math.round((41+(block*16+i)*2+.65)*10),166,1,1).data;n=(n<<1)|((p[0]+p[1]+p[2])<384?1:0);}values.push(n);}
+  const page=values[2]-1;if(values[0]!==((hash(list)>>>16)&65535)||values[1]!== (hash(list)&65535)||values[3]!==0x6a3||page<0||page>=Math.ceil(list.length/PER_PAGE))throw Error('명단 또는 용지 번호가 맞지 않습니다. 용지를 만들 때 사용한 개강보고를 다시 불러와 주세요.');return page;
+ }
+ function photoRect(canvas){
+  const {width:w,height:h}=canvas,data=canvas.getContext('2d').getImageData(0,0,w,h).data;
+  function edges(axis){const len=axis===0?w:h,other=axis===0?h:w,result=[];
+   for(let p=8;p<len-8;p++){let sum=0,n=0;for(let t=Math.round(other*.18);t<other*.82;t+=2){const at=(axis===0?t*w+p:p*w+t)*4,prev=(axis===0?t*w+p-3:(p-3)*w+t)*4;sum+=(Math.abs(data[at]-data[prev])+Math.abs(data[at+1]-data[prev+1])+Math.abs(data[at+2]-data[prev+2]))/3;n++;}result.push({p,score:sum/n});}
+   return result.filter(x=>x.score>13).sort((a,b)=>b.score-a.score).slice(0,32);
+  }
+  function pair(e,min,max,total){let best=null;for(const a of e)for(const b of e){const span=b.p-a.p;if(span<min||span>max||a.p>total*.24||b.p<total*.76)continue;const score=a.score+b.score-Math.abs((a.p+b.p)/2-total/2)*.08;if(!best||score>best.score)best={lo:a.p,hi:b.p,score};}return best;}
+  const x=pair(edges(0),245,375,w),y=pair(edges(1),325,475,h);
+  if(!x||!y||x.score<40||y.score<40)return {x:0,y:0,w,h,automatic:false};
+  let left=Math.max(0,x.lo-7),top=Math.max(0,y.lo-7),right=Math.min(w,x.hi+7),bottom=Math.min(h,y.hi+7);
+  // An apparent photo edge must never discard darker hair/clothing outside it.
+  // Keep uncertain paper/noise rather than tightening around a person's face.
+  for(let yy=6;yy<h-6;yy++)for(let xx=6;xx<w-6;xx++){
+   if(xx>=left&&xx<right&&yy>=top&&yy<bottom)continue;
+   const k=(yy*w+xx)*4;if((data[k]+data[k+1]+data[k+2])/3<210){left=Math.min(left,Math.max(0,xx-5));top=Math.min(top,Math.max(0,yy-5));right=Math.max(right,Math.min(w,xx+6));bottom=Math.max(bottom,Math.min(h,yy+6));}
+  }
+  return {x:left,y:top,w:right-left,h:bottom-top,automatic:true};
+ }
+ function crc32(bytes){let crc=-1;for(const b of bytes){crc^=b;for(let j=0;j<8;j++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}return (crc^-1)>>>0;}
+ function zip(entries){
+  const enc=new TextEncoder(),locals=[],centrals=[];let offset=0;
+  for(const entry of entries){const name=enc.encode(entry.name),data=entry.bytes,crc=crc32(data);const local=new Uint8Array(30+name.length),l=new DataView(local.buffer);l.setUint32(0,0x04034b50,true);l.setUint16(4,20,true);l.setUint16(6,0x800,true);l.setUint32(14,crc,true);l.setUint32(18,data.length,true);l.setUint32(22,data.length,true);l.setUint16(26,name.length,true);local.set(name,30);locals.push(local,data);
+   const central=new Uint8Array(46+name.length),c=new DataView(central.buffer);c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x800,true);c.setUint32(16,crc,true);c.setUint32(20,data.length,true);c.setUint32(24,data.length,true);c.setUint16(28,name.length,true);c.setUint32(42,offset,true);central.set(name,46);centrals.push(central);offset+=local.length+data.length;
+  }
+  const size=centrals.reduce((n,b)=>n+b.length,0),end=new Uint8Array(22),e=new DataView(end.buffer);e.setUint32(0,0x06054b50,true);e.setUint16(8,entries.length,true);e.setUint16(10,entries.length,true);e.setUint32(12,size,true);e.setUint32(16,offset,true);return new Blob([...locals,...centrals,end],{type:'application/zip'});
+ }
+ const api={roster,birth,hash,slot,sheetHtml,homography,project,markers,rectified,readCode,photoRect,zip,crc32,PER_PAGE};
+ if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PHOTO_SHEET_CORE=api;
+})(typeof window==='undefined'?globalThis:window);
+
+</script>
+<script id="photo-sheet-admin">
+(function(){
+ 'use strict';
+ const C=window.PHOTO_SHEET_CORE,$=id=>document.getElementById(id);
+ let state={open:false,actor:'',ticket:0,book:null,roster:[],results:new Map(),pages:new Set(),timer:null,busy:false};
+ function actor(){if(window.SUPER_USER)return JSON.stringify(['super',window.SUPER_USER.id]);if(window.ADMIN_USER&&window.ADMIN_USER.기관명)return JSON.stringify(['admin',window.ADMIN_USER.id,window.ADMIN_USER.기관명]);return '';}
+ function allowed(t){return state.open&&!!actor()&&actor()===state.actor&&(t==null||t===state.ticket);}
+ function message(text,error){$('psStatus').textContent=text;$('psStatus').className=error?'ps-error':'';}
+ function clearFrame(){$('psPrintFrame').srcdoc='';$('psPrintFrame').hidden=true;$('psPrint').disabled=true;}
+ function close(){clearInterval(state.timer);state.open=false;state.actor='';state.ticket++;state.book=null;state.roster=[];state.results.clear();state.pages.clear();state.busy=false;$('photoSheetTool').hidden=true;clearFrame();['psWorkbook','psScans'].forEach(id=>$(id).value='');['psWorkbook','psTitle','psRosterChecked'].forEach(id=>$(id).disabled=false);$('psResults').replaceChildren();$('psNames').textContent='개강보고를 선택해 주세요.';$('psSheet').replaceChildren();$('psSheet').disabled=true;$('psRosterChecked').checked=false;$('psMake').disabled=true;$('psZip').disabled=true;$('psScans').disabled=true;$('psCount').textContent='';}
+ function open(){if(!actor())return alert('관리자로 로그인한 뒤 이용해 주세요.');close();state.open=true;state.actor=actor();$('photoSheetTool').hidden=false;$('psTitle').value='교육생 사진 부착용지';message('먼저 개강보고를 불러와 주세요.');state.timer=setInterval(()=>{if(!allowed())close();},300);}
+ function resetResults(){state.ticket++;state.results.clear();state.pages.clear();$('psResults').replaceChildren();$('psCount').textContent='';$('psZip').disabled=true;$('psRosterChecked').checked=false;$('psScans').disabled=true;clearFrame();}
+ async function workbook(input){if(!allowed()||state.busy)return;const f=input.files[0];if(!f)return;resetResults();state.roster=[];state.book=null;$('psNames').textContent='명단을 읽는 중입니다…';$('psMake').disabled=true;const t=state.ticket;
+  try{if(!window.XLSX)throw Error('엑셀 읽기 기능을 불러오지 못했습니다. 인터넷 연결 후 앱을 새로 열어 주세요.');if(f.size>25*1024*1024)throw Error('25MB 이하 엑셀을 선택해 주세요.');const buf=await f.arrayBuffer();if(!allowed(t))return;state.book=XLSX.read(buf,{type:'array',cellDates:true});$('psSheet').replaceChildren(...state.book.SheetNames.map(n=>new Option(n,n)));$('psSheet').disabled=false;sheet();}catch(e){if(allowed(t)){message(e.message,true);$('psNames').textContent='명단을 읽지 못했습니다.';}}
+ }
+ function sheet(){if(!allowed()||!state.book||state.busy)return;resetResults();state.roster=[];try{const rows=XLSX.utils.sheet_to_json(state.book.Sheets[$('psSheet').value],{header:1,raw:true,defval:null});state.roster=C.roster(rows);const frag=document.createDocumentFragment();state.roster.forEach(p=>{const div=document.createElement('div');div.textContent=p.number+'. '+p.name+' · '+p.birth;frag.appendChild(div);});$('psNames').replaceChildren(frag);message(state.roster.length+'명 · '+Math.ceil(state.roster.length/C.PER_PAGE)+'쪽입니다. 순서를 확인하고 용지를 인쇄해 주세요.');}catch(e){$('psNames').textContent='이 시트에서는 명단을 읽지 못했습니다. 다른 시트를 선택해 주세요.';message(e.message,true);}rosterChecked();}
+ function rosterChecked(){if(!allowed())return;const ok=!!state.roster.length&&$('psRosterChecked').checked;$('psMake').disabled=!ok;$('psScans').disabled=!ok||state.busy;$('psPrint').disabled=!ok||$('psPrintFrame').hidden;updateCount();}
+ function titleChanged(){if(allowed())clearFrame();}
+ function preview(){if(!allowed()||!state.roster.length||!$('psRosterChecked').checked)return;const frame=$('psPrintFrame');frame.srcdoc=C.sheetHtml(state.roster,$('psTitle').value);frame.hidden=false;$('psPrint').disabled=false;}
+ function print(){if(!allowed()||$('psPrintFrame').hidden||!$('psRosterChecked').checked)return;$('psPrintFrame').contentWindow.focus();$('psPrintFrame').contentWindow.print();}
+ function canvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
+ function busy(value){state.busy=value;['psWorkbook','psSheet','psTitle','psRosterChecked'].forEach(id=>$(id).disabled=value||(id==='psSheet'&&!state.book));$('psScans').disabled=value||!$('psRosterChecked').checked;updateCount();}
+ async function scans(input){if(!allowed()||state.busy||!$('psRosterChecked').checked)return;const files=Array.from(input.files);if(!files.length)return;const t=state.ticket;busy(true);let done=0,errors=[];
+  try{for(const file of files){if(!allowed(t))return;message(file.name+' 확인 중…');let bitmap;
+    try{if(!/image\/(jpeg|png)/.test(file.type)||file.size>45*1024*1024)throw Error('45MB 이하 JPG 또는 PNG를 선택해 주세요.');bitmap=await createImageBitmap(file,{imageOrientation:'from-image'});if(!allowed(t))return;if(bitmap.width*bitmap.height>42000000)throw Error('이미지가 너무 큽니다. 컬러 300dpi 정도로 스캔해 주세요.');
+     const src=canvas(bitmap.width,bitmap.height);src.getContext('2d').drawImage(bitmap,0,0);await new Promise(r=>setTimeout(r,10));if(!allowed(t))return;const normalized=C.rectified(src),page=C.readCode(normalized,state.roster);if(state.pages.has(page))throw Error((page+1)+'쪽은 이미 불러왔습니다. 중복 파일은 건너뜁니다.');
+     const batch=[];for(let i=0;i<C.PER_PAGE;i++){const person=state.roster[page*C.PER_PAGE+i];if(!person)break;const s=C.slot(i),cell=canvas(s.w*10,s.h*10);cell.getContext('2d').drawImage(normalized,s.x*10,s.y*10,s.w*10,s.h*10,0,0,cell.width,cell.height);const record={person,cell,rect:C.photoRect(cell),checked:false};batch.push(record);}
+     if(!allowed(t))return;batch.forEach(r=>{state.results.set(r.person.number,r);renderCard(r);});state.pages.add(page);done++;
+    }catch(e){if(allowed(t))errors.push(file.name+': '+e.message);}finally{if(bitmap)bitmap.close();}
+   }
+  }finally{if(allowed(t)){input.value='';busy(false);message(done+'쪽을 불러왔습니다. 사진과 이름을 확인해 주세요.'+(errors.length?'\n'+errors.join('\n'):''),errors.length>0);}}
+ }
+ function output(r){const rect=r.rect,c=canvas(Math.round(rect.w),Math.round(rect.h));c.getContext('2d').drawImage(r.cell,rect.x,rect.y,rect.w,rect.h,0,0,c.width,c.height);return c;}
+ function renderCard(r){
+  const card=document.createElement('article');card.className='ps-card';card.dataset.number=r.person.number;const title=document.createElement('strong');title.textContent=r.person.number+'. '+r.person.filename;card.appendChild(title);
+  const note=document.createElement('p');note.className='ps-note';note.textContent=r.rect.automatic?'사진 테두리를 자동으로 찾았습니다.':'칸 전체를 남겼습니다. 사진 범위를 확인해 주세요.';card.appendChild(note);
+  const preview=output(r);preview.setAttribute('aria-label',r.person.name+' 잘린 사진');card.appendChild(preview);const fields=document.createElement('div');fields.className='ps-fields';
+  for(const [key,label] of [['x','왼쪽'],['y','위'],['w','너비'],['h','높이']]){const holder=document.createElement('label');holder.textContent=label+' mm';const input=document.createElement('input');input.type='number';input.min=key==='w'||key==='h'?'1':'0';input.step='.1';input.value=(r.rect[key]/10).toFixed(1);input.setAttribute('aria-label',r.person.name+' '+label);input.onchange=()=>{if(!allowed()||state.busy)return;const n=Number(input.value)*10,next=Object.assign({},r.rect,{[key]:n});if(!Number.isFinite(n)||next.x<0||next.y<0||next.w<10||next.h<10||next.x+next.w>r.cell.width+.01||next.y+next.h>r.cell.height+.01){input.value=(r.rect[key]/10).toFixed(1);return alert('범위가 사진 칸을 벗어납니다. 왼쪽·위·너비·높이를 확인해 주세요.');}r.rect=next;r.checked=false;check.checked=false;refresh();};holder.appendChild(input);fields.appendChild(holder);}
+  card.appendChild(fields);const full=document.createElement('button');full.textContent='칸 전체로 되돌리기';full.onclick=()=>{if(!allowed()||state.busy)return;r.rect={x:0,y:0,w:r.cell.width,h:r.cell.height,automatic:false};r.checked=false;check.checked=false;Array.from(fields.querySelectorAll('input')).forEach((input,i)=>input.value=(r.rect[['x','y','w','h'][i]]/10).toFixed(1));refresh();};card.appendChild(full);
+  const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.onchange=()=>{if(!allowed()||state.busy){check.checked=r.checked;return;}r.checked=check.checked;updateCount();};label.appendChild(check);label.append(' 이름·머리·상반신 확인, 저장에 포함');card.appendChild(label);
+  function refresh(){const result=output(r);preview.width=result.width;preview.height=result.height;preview.getContext('2d').drawImage(result,0,0);updateCount();}
+  $('psResults').appendChild(card);Array.from($('psResults').children).sort((a,b)=>+a.dataset.number-+b.dataset.number).forEach(node=>$('psResults').appendChild(node));
+ }
+ function updateCount(){const count=Array.from(state.results.values()).filter(r=>r.checked).length;$('psCount').textContent=count+'장 선택 / '+state.results.size+'칸 불러옴 / 명단 '+state.roster.length+'명';$('psZip').disabled=!count||state.busy||!$('psRosterChecked').checked;}
+ async function download(){if(!allowed()||state.busy||!$('psRosterChecked').checked)return;const t=state.ticket,selected=Array.from(state.results.values()).filter(r=>r.checked).sort((a,b)=>a.person.number-b.person.number);if(!selected.length)return;busy(true);
+  try{const entries=[];for(const r of selected){const blob=await new Promise(resolve=>output(r).toBlob(resolve,'image/jpeg',.98));if(!allowed(t))return;if(!blob)throw Error('사진 저장에 실패했습니다.');entries.push({name:r.person.filename,bytes:new Uint8Array(await blob.arrayBuffer())});}
+   if(!allowed(t))return;const blob=C.zip(entries),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='교육생_개별사진_'+entries.length+'명.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);message(entries.length+'장의 ZIP 파일을 만들었습니다. 다운로드 폴더를 확인해 주세요.');
+  }catch(e){if(allowed(t))message(e.message,true);}finally{if(allowed(t))busy(false);}
+ }
+ document.addEventListener('keydown',e=>{if(state.open&&e.key==='Escape')close();});
+ window.CBT_PHOTO_SHEET={open,close,workbook,sheet,rosterChecked,titleChanged,preview,print,scans,download};
+})();
+
+</script>
+<!-- PHOTO_SHEET_END -->
 
 </body>
 </html>
